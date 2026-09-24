@@ -79,6 +79,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.33percent", accessibilityDescription: Format.appName)
+        #if DEBUG
+        // Tells a Debug build apart from an installed Release copy in the menu bar.
+        // The menu bar ignores `contentTintColor`, so the symbol is drawn in color.
+        if let image = item.button?.image?.withSymbolConfiguration(.init(paletteColors: [.systemOrange])) {
+            image.isTemplate = false
+            item.button?.image = image
+        }
+        #endif
         item.button?.target = self
         item.button?.action = #selector(togglePanel)
         statusItem = item
