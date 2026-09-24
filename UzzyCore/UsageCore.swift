@@ -96,11 +96,23 @@ public final class UsageCore {
     }
 
     private func readClaude() async -> ProviderReading {
-        guard case .session(let session) = await claudeSessionReader.read(),
-              case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken)),
-              response.status == 200,
+        let session: Session
+        switch await claudeSessionReader.read() {
+        case .session(let read): session = read
+        case .noSession: return .failed(.noSession)
+        case .accessDenied: return .failed(.sessionAccessDenied)
+        case .unknownFormat: return .failed(.incompatibleSession)
+        }
+        guard case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken))
+        else { return .failed(.queryFailed) }
+        switch response.status {
+        case 401: return .failed(.sessionExpired)
+        case 403: return .failed(.accessRefused)
+        default: break
+        }
+        guard response.status == 200,
               let quotas = Claude.quotas(from: response.body, readAt: clock.now())
-        else { return .queryFailed }
+        else { return .failed(.queryFailed) }
         return .quotas(quotas)
     }
 }
@@ -109,7 +121,7 @@ public final class UsageCore {
 private enum ProviderReading {
     case loading
     case quotas([QuotaReading])
-    case queryFailed
+    case failed(Failure)
 
     func isFresh(at now: Date) -> Bool {
         guard case .quotas(let quotas) = self, let readAt = quotas.map(\.readAt).min() else { return false }
@@ -120,7 +132,7 @@ private enum ProviderReading {
         switch self {
         case .loading: .loading
         case .quotas(let quotas): .quotas(quotas.map { $0.quota(in: magnitude, at: now) })
-        case .queryFailed: .queryFailed
+        case .failed(let failure): .failed(failure)
         }
     }
 }

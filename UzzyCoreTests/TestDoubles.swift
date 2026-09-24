@@ -51,6 +51,22 @@ final class ManualClock: WallClock {
     }
 }
 
+/// Returns the sample session, or `reading` when set, and counts the reads.
+/// Reading a real session can show the Keychain prompt.
+actor ControlledSessionReader: SessionReader {
+    private(set) var reads = 0
+    private var reading = SessionReading.session(Session(accessToken: "sample-token", accountID: "sample-account"))
+
+    func read() async -> SessionReading {
+        reads += 1
+        return reading
+    }
+
+    func answer(with reading: SessionReading) {
+        self.reading = reading
+    }
+}
+
 /// Answers every request with the sample Claude response, or with `result`
 /// when set. While held, requests wait until the test releases them.
 actor ControlledTransport: HTTPTransport {
