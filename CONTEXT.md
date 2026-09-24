@@ -31,3 +31,7 @@ _Avoid_: Calendar month (when it is a billing cycle), combined period.
 **Calculated value**:
 A quota value derived from other valid data of that same quota, account, unit and period, rather than reported directly by the provider.
 _Avoid_: Provider-reported value (when it is calculated), estimate (for an exact calculation).
+
+**Session**:
+The sign-in an official app (Claude Code, Codex CLI, Cursor) keeps on this Mac, which Uzzy reuses read-only to query quotas. It can be missing, expired (rejected by the provider), inaccessible (access denied by the user) or in an unknown format.
+_Avoid_: Login, account (the account is the identity behind a session), the 5-hour quota period.

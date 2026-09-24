@@ -74,8 +74,8 @@ private struct CardView: View {
             switch card.content {
             case .loading:
                 Message(title: "Consultando cuotas…", detail: "Todavía no hay un dato válido.")
-            case .queryFailed:
-                Message(title: "No se pudo consultar", detail: "No hay un dato válido que mostrar.")
+            case .failed(let failure):
+                FailureMessage(failure: failure, provider: card.provider)
             case .quotas(let quotas):
                 ForEach(quotas, id: \.period) { quota in
                     QuotaView(quota: quota, magnitude: magnitude, now: now)
@@ -172,6 +172,38 @@ private struct Message: View {
     }
 }
 
+/// Why the card has no quotas, and what to do about it.
+private struct FailureMessage: View {
+    let failure: Failure
+    let provider: Provider
+
+    var body: some View {
+        switch failure {
+        case .noSession:
+            Message(title: "Sin sesión", detail: "Inicia sesión en \(provider.officialApp) y pulsa Actualizar.")
+        case .sessionAccessDenied:
+            Message(
+                title: "Sin acceso a la sesión",
+                detail: "Se denegó el acceso a la sesión de \(provider.officialApp) en el llavero. Pulsa Actualizar para volver a pedirlo."
+            )
+        case .incompatibleSession:
+            Message(
+                title: "Sesión incompatible",
+                detail: "La sesión de \(provider.officialApp) tiene un formato que \(Format.appName) no reconoce."
+            )
+        case .sessionExpired:
+            Message(title: "Sesión vencida", detail: "Renueva la sesión en \(provider.officialApp) y pulsa Actualizar.")
+        case .accessRefused:
+            Message(
+                title: "Acceso rechazado",
+                detail: "\(provider.name) rechazó la consulta. Puede ser una restricción de la cuenta; revísala en \(provider.officialApp) y pulsa Actualizar."
+            )
+        case .queryFailed:
+            Message(title: "No se pudo consultar", detail: "No hay un dato válido que mostrar.")
+        }
+    }
+}
+
 private extension QuotaPeriod {
     var name: String {
         switch self {
@@ -195,6 +227,13 @@ private extension Provider {
     var name: String {
         switch self {
         case .claude: "Claude"
+        }
+    }
+
+    /// The app whose session the card reuses.
+    var officialApp: String {
+        switch self {
+        case .claude: "Claude Code"
         }
     }
 }

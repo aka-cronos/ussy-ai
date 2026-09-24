@@ -38,7 +38,27 @@ public enum CardContent: Sendable, Equatable {
     /// No valid reading yet.
     case loading
     case quotas([Quota])
-    /// The query failed. Specific reasons arrive with the failure states.
+    /// The card has no quotas to show, and this is why.
+    case failed(Failure)
+}
+
+/// Why a card has no quotas to show.
+public enum Failure: Sendable, Equatable {
+    /// The official app has no session on this Mac.
+    case noSession
+    /// The user denied access to the session (the Keychain prompt).
+    case sessionAccessDenied
+    /// The session is stored in a format the app does not know. The
+    /// credential is never shown.
+    case incompatibleSession
+    /// The provider rejected the session (401): it has to be renewed in the
+    /// official app.
+    case sessionExpired
+    /// The provider refused the query (403). It may be a restriction other
+    /// than the session, so it is not taken as an expired session.
+    case accessRefused
+    /// The query failed for any other reason (network, server or an
+    /// unreadable response).
     case queryFailed
 }
 

@@ -21,6 +21,9 @@ public final class UsageCore {
     private var magnitude = QuotaMagnitude.used
     private var claude = ProviderReading.loading
     private var claudeQuery: Task<Void, Never>?
+    /// The last session read on a user action, reused by the queries no user
+    /// action asked for. `nil` when that read gave no usable session.
+    @ObservationIgnored private var claudeSession: Session?
     /// Identifies the only scheduled query that may still run. `nil` while
     /// the panel is closed.
     @ObservationIgnored private var cadence: UUID?
@@ -44,23 +47,35 @@ public final class UsageCore {
         self.magnitude = magnitude
     }
 
+    /// Reads the session again, which may show the Keychain prompt: opening
+    /// the panel is a user action.
     public func panelOpened() {
-        if !claude.isFresh(at: clock.now()) {
-            queryClaude()
+        switch claude {
+        case .failed(.sessionAccessDenied):
+            // The user said no; only Actualizar asks again.
+            break
+        case .failed(let failure) where failure.isRejection:
+            // Only a session that changed since the rejection is worth a query.
+            queryClaude(.read(skipping: claudeSession))
+        default:
+            if !claude.isFresh(at: clock.now()) {
+                queryClaude(.read(skipping: nil))
+            }
         }
         scheduleNextQuery()
     }
 
-    /// The Actualizar button: queries even when the reading is fresh.
+    /// The Actualizar button: reads the session and queries even when the
+    /// reading is fresh or the session was rejected.
     public func refresh() {
-        queryClaude()
+        queryClaude(.read(skipping: nil))
     }
 
     /// Queries on waking from sleep while the panel is open, and restarts the
     /// cadence from then.
     public func systemWoke() {
         guard cadence != nil else { return }
-        queryClaude()
+        queryClaudeOnItsOwn()
         scheduleNextQuery()
     }
 
@@ -80,28 +95,100 @@ public final class UsageCore {
         self.cadence = cadence
         clock.schedule(at: clock.now().addingTimeInterval(Self.refreshInterval)) { [weak self] in
             guard let self, self.cadence == cadence else { return }
-            queryClaude()
+            queryClaudeOnItsOwn()
             scheduleNextQuery()
         }
     }
 
+    /// A query no user action asked for. It never reads the session, so it
+    /// never shows the Keychain prompt: it reuses the last one read. After the
+    /// provider rejects a session, or the user denies access to it, only the
+    /// user asks again.
+    private func queryClaudeOnItsOwn() {
+        guard !claude.waitsForTheUser, let claudeSession else { return }
+        queryClaude(.reuse(claudeSession))
+    }
+
     /// Never two queries of the same provider at once: a repeated request
     /// joins the one in flight.
-    private func queryClaude() {
+    private func queryClaude(_ source: SessionSource) {
         guard claudeQuery == nil else { return }
         claudeQuery = Task {
-            claude = await readClaude()
+            if let reading = await readClaude(source) {
+                claude = reading
+            }
             claudeQuery = nil
         }
     }
 
-    private func readClaude() async -> ProviderReading {
-        guard case .session(let session) = await claudeSessionReader.read(),
-              case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken)),
-              response.status == 200,
+    /// `nil` when the card keeps what it shows: the session read is the one
+    /// to skip, or the provider rejected a reused session.
+    private func readClaude(_ source: SessionSource) async -> ProviderReading? {
+        let session: Session
+        switch source {
+        case .reuse(let reused):
+            session = reused
+        case .read(let skipped):
+            let reading = await claudeSessionReader.read()
+            if let failure = Failure(reading) {
+                claudeSession = nil
+                return .failed(failure)
+            }
+            guard case .session(let read) = reading, read != skipped else { return nil }
+            session = read
+            claudeSession = read
+        }
+        guard case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken))
+        else { return .failed(.queryFailed) }
+        if let rejection = Failure(rejectionStatus: response.status) {
+            guard case .read = source else {
+                // The official app may have renewed the token since it was
+                // read, so the session is not called expired. Automatic
+                // queries stop; the next user action reads it again.
+                claudeSession = nil
+                return nil
+            }
+            return .failed(rejection)
+        }
+        guard response.status == 200,
               let quotas = Claude.quotas(from: response.body, readAt: clock.now())
-        else { return .queryFailed }
+        else { return .failed(.queryFailed) }
         return .quotas(quotas)
+    }
+}
+
+/// Where a query takes the provider's session from.
+private enum SessionSource {
+    /// Reads it, which may show the Keychain prompt. Skips the query when the
+    /// session read is `skipping`, e.g. the one the provider rejected.
+    case read(skipping: Session?)
+    /// Reuses a session read before, without reading it again.
+    case reuse(Session)
+}
+
+private extension Failure {
+    /// Why a session reading gave no session; `nil` when it gave one.
+    init?(_ reading: SessionReading) {
+        switch reading {
+        case .session: return nil
+        case .noSession: self = .noSession
+        case .accessDenied: self = .sessionAccessDenied
+        case .unknownFormat: self = .incompatibleSession
+        }
+    }
+
+    /// The provider rejected the session (401) or the query (403); `nil`
+    /// for any other status.
+    init?(rejectionStatus status: Int) {
+        switch status {
+        case 401: self = .sessionExpired
+        case 403: self = .accessRefused
+        default: return nil
+        }
+    }
+
+    var isRejection: Bool {
+        self == .sessionExpired || self == .accessRefused
     }
 }
 
@@ -109,18 +196,24 @@ public final class UsageCore {
 private enum ProviderReading {
     case loading
     case quotas([QuotaReading])
-    case queryFailed
+    case failed(Failure)
 
     func isFresh(at now: Date) -> Bool {
         guard case .quotas(let quotas) = self, let readAt = quotas.map(\.readAt).min() else { return false }
         return now.timeIntervalSince(readAt) < UsageCore.refreshInterval
     }
 
+    /// The provider rejected the session, or the user denied access to it.
+    var waitsForTheUser: Bool {
+        guard case .failed(let failure) = self else { return false }
+        return failure.isRejection || failure == .sessionAccessDenied
+    }
+
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
         switch self {
         case .loading: .loading
         case .quotas(let quotas): .quotas(quotas.map { $0.quota(in: magnitude, at: now) })
-        case .queryFailed: .queryFailed
+        case .failed(let failure): .failed(failure)
         }
     }
 }
