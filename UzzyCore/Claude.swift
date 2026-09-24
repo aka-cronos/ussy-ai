@@ -2,11 +2,13 @@ import Foundation
 
 /// Claude adapter: builds the usage query and translates its response into
 /// normalized quotas.
-enum Claude {
-    static func request(accessToken: String) -> URLRequest {
+enum Claude: ProviderAdapter {
+    static let provider = Provider.claude
+
+    static func request(for session: Session) -> URLRequest {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
         return request
     }
 
@@ -33,7 +35,7 @@ enum Claude {
         let models = ["Sonnet", "Opus"] + limits.compactMap { $0.kind == "weekly_scoped" ? $0.scope?.model?.display_name : nil }
         let perModel = models.uniqued().compactMap { model in
             let windows = copies(legacy[model] ?? nil, kind: "weekly_scoped", model: model)
-            return windows.contains { $0.utilization != nil } ? reading(.weeklyForModel(model), windows, at: moment) : nil
+            return windows.contains { $0.utilization != nil } ? reading(.limit(model, .weekly), windows, at: moment) : nil
         }
         return base + perModel
     }

@@ -198,6 +198,11 @@ private struct FailureMessage: View {
         switch failure {
         case .noSession:
             Message(title: "Sin sesión", detail: "Inicia sesión en \(provider.officialApp) y pulsa Actualizar.")
+        case .sessionWithoutSubscriptionQuotas:
+            Message(
+                title: "Esta sesión no ofrece cuotas de suscripción",
+                detail: "La sesión de \(provider.officialApp) no es de una suscripción (p. ej., usa una clave de API). Inicia sesión con tu suscripción en \(provider.officialApp) y pulsa Actualizar."
+            )
         case .sessionAccessDenied:
             Message(
                 title: "Sin acceso a la sesión",
@@ -238,7 +243,8 @@ private extension QuotaPeriod {
         switch self {
         case .fiveHours: "5 horas"
         case .weekly: "Semanal"
-        case .weeklyForModel(let model): "Semanal · \(model)"
+        case .lasting(let seconds): Format.duration(seconds: seconds)
+        case .limit(let name, let period): "\(period.name) · \(name)"
         }
     }
 }
@@ -256,6 +262,7 @@ private extension Provider {
     var name: String {
         switch self {
         case .claude: "Claude"
+        case .codex: "Codex"
         }
     }
 
@@ -263,6 +270,7 @@ private extension Provider {
     var officialApp: String {
         switch self {
         case .claude: "Claude Code"
+        case .codex: "Codex CLI"
         }
     }
 }

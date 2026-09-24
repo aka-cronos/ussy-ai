@@ -42,6 +42,18 @@ enum Format {
         return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(locale))
     }
 
+    /// The length of a quota period, in its largest whole unit: e.g.
+    /// "24 horas" is shown as "1 día", and 5400 s as "90 min".
+    static func duration(seconds: Int) -> String {
+        func plural(_ count: Int, _ one: String, _ many: String) -> String {
+            "\(count) \(count == 1 ? one : many)"
+        }
+        if seconds > 0, seconds % 86_400 == 0 { return plural(seconds / 86_400, "día", "días") }
+        if seconds > 0, seconds % 3_600 == 0 { return plural(seconds / 3_600, "hora", "horas") }
+        if seconds > 0, seconds % 60 == 0 { return "\(seconds / 60) min" }
+        return "\(seconds) s"
+    }
+
     private static func countdown(_ seconds: TimeInterval) -> String {
         let minutes = Int(seconds / 60)
         let (days, hours, restMinutes) = (minutes / 1440, minutes / 60 % 24, minutes % 60)

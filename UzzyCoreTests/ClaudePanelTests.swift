@@ -9,45 +9,49 @@ struct ClaudePanelTests {
     func core(transport: SampleTransport) -> UsageCore {
         UsageCore(
             claudeSessionReader: SampleSessionReader(),
+            codexSessionReader: NoSessionReader(),
             transport: transport,
             clock: FixedClock(readingMoment)
         )
     }
 
-    @Test func beforeTheFirstReadingTheClaudeCardIsLoading() {
-        let core = core(transport: SampleTransport(claudeResponse: Samples.claudeUsageResponse))
+    func claudeContent(_ core: UsageCore) -> CardContent? {
+        core.state.cards.first(where: { $0.provider == .claude })?.content
+    }
 
-        #expect(core.state == PanelState(magnitude: .used, cards: [Card(provider: .claude, content: .loading)]))
+    @Test func beforeTheFirstReadingTheClaudeCardIsLoading() {
+        let core = core(transport: SampleTransport())
+
+        #expect(core.state.magnitude == .used)
+        #expect(claudeContent(core) == .loading)
     }
 
     @Test func openingThePanelShowsEachClaudeQuotaSeparately() async {
-        let core = core(transport: SampleTransport(claudeResponse: Samples.claudeUsageResponse))
+        let core = core(transport: SampleTransport())
 
         core.panelOpened()
         await core.queriesFinished()
 
-        #expect(core.state == PanelState(magnitude: .used, cards: [
-            Card(provider: .claude, content: .quotas([
-                Quota(
-                    period: .fiveHours,
-                    value: .percent(35, calculated: false),
-                    // 2026-09-23T17:00:00Z
-                    reset: .at(Date(timeIntervalSince1970: 1_790_182_800)),
-                    readAt: readingMoment
-                ),
-                Quota(
-                    period: .weekly,
-                    value: .percent(62, calculated: false),
-                    // 2026-09-25T09:00:00Z
-                    reset: .at(Date(timeIntervalSince1970: 1_790_326_800)),
-                    readAt: readingMoment
-                ),
-            ])),
+        #expect(claudeContent(core) == .quotas([
+            Quota(
+                period: .fiveHours,
+                value: .percent(35, calculated: false),
+                // 2026-09-23T17:00:00Z
+                reset: .at(Date(timeIntervalSince1970: 1_790_182_800)),
+                readAt: readingMoment
+            ),
+            Quota(
+                period: .weekly,
+                value: .percent(62, calculated: false),
+                // 2026-09-25T09:00:00Z
+                reset: .at(Date(timeIntervalSince1970: 1_790_326_800)),
+                readAt: readingMoment
+            ),
         ]))
     }
 
     @Test func queriesClaudeUsageWithOnlyTheAccessToken() async {
-        let transport = SampleTransport(claudeResponse: Samples.claudeUsageResponse)
+        let transport = SampleTransport()
         let core = core(transport: transport)
 
         core.panelOpened()

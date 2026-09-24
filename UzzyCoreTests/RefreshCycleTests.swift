@@ -12,7 +12,7 @@ struct RefreshCycleTests {
     let refreshInterval: TimeInterval = 5 * 60
 
     init() {
-        core = UsageCore(claudeSessionReader: SampleSessionReader(), transport: transport, clock: clock)
+        core = UsageCore(claudeSessionReader: SampleSessionReader(), codexSessionReader: NoSessionReader(), transport: transport, clock: clock)
     }
 
     func requestCount() async -> Int {
