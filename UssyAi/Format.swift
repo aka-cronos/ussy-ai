@@ -17,10 +17,10 @@ enum Format {
         switch reset {
         case .unknown:
             return "Reinicio desconocido"
+        case .pendingConfirmation:
+            return "Reinicio pendiente de confirmar"
         case .at(let date):
-            let remaining = date.timeIntervalSince(now)
-            let when = "Reinicio: \(day(date, now: now)), \(time(date))"
-            return remaining > 0 ? "\(when) · en \(countdown(remaining))" : when
+            return "Reinicio: \(day(date, now: now)), \(time(date)) · en \(countdown(date.timeIntervalSince(now)))"
         }
     }
 

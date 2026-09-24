@@ -17,7 +17,7 @@ struct ClaudePanelTests {
     @Test func beforeTheFirstReadingTheClaudeCardIsLoading() {
         let core = core(transport: SampleTransport(claudeResponse: Samples.claudeUsageResponse))
 
-        #expect(core.state == PanelState(cards: [Card(provider: .claude, content: .loading)]))
+        #expect(core.state == PanelState(magnitude: .used, cards: [Card(provider: .claude, content: .loading)]))
     }
 
     @Test func openingThePanelShowsEachClaudeQuotaSeparately() async {
@@ -25,18 +25,18 @@ struct ClaudePanelTests {
 
         await core.panelOpened()
 
-        #expect(core.state == PanelState(cards: [
+        #expect(core.state == PanelState(magnitude: .used, cards: [
             Card(provider: .claude, content: .quotas([
                 Quota(
-                    period: "5 horas",
-                    usedPercent: 35,
+                    period: .fiveHours,
+                    value: .percent(35, calculated: false),
                     // 2026-09-23T17:00:00Z
                     reset: .at(Date(timeIntervalSince1970: 1_790_182_800)),
                     readAt: readingMoment
                 ),
                 Quota(
-                    period: "Semanal",
-                    usedPercent: 62,
+                    period: .weekly,
+                    value: .percent(62, calculated: false),
                     // 2026-09-25T09:00:00Z
                     reset: .at(Date(timeIntervalSince1970: 1_790_326_800)),
                     readAt: readingMoment
