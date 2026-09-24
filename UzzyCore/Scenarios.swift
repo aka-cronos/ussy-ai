@@ -23,8 +23,8 @@ public struct Scenario: Sendable, Identifiable, Hashable {
     /// A usage core with its panel open, showing the scenario. Closing and
     /// opening the panel again keeps showing it.
     @MainActor
-    public func start() async -> UsageCore {
-        let stage = Stage()
+    public func start(enabledProviders: Set<Provider> = Set(Provider.allCases)) async -> UsageCore {
+        let stage = Stage(enabledProviders: enabledProviders)
         await play(stage)
         return stage.core
     }
@@ -57,7 +57,7 @@ extension Scenario {
     public static let loading = Scenario("loading", "Consultando cuotas") { stage in
         await stage.transport.hold()
         await stage.openPanel(waitingFor: [])
-        await stage.transport.waitForRequests(3)
+        await stage.transport.waitForRequests(stage.core.enabledProviders.count)
     }
 
     /// «Consultando nueva cuenta»: every session changed to another account,
@@ -67,7 +67,7 @@ extension Scenario {
         await stage.answerEverySession(with: .session(Session(accessToken: "other-token", accountID: "other-account")))
         await stage.transport.hold()
         stage.core.refresh()
-        await stage.transport.waitForRequests(6)
+        await stage.transport.waitForRequests(stage.core.enabledProviders.count * 2)
     }
 
     /// «Desactualizado»: a later query of every card failed, so each keeps
@@ -219,7 +219,7 @@ final class Stage {
     ]
     let core: UsageCore
 
-    init() {
+    init(enabledProviders: Set<Provider> = Set(Provider.allCases)) {
         core = UsageCore(
             claudeSessionReader: sessionReaders[.claude]!,
             codexSessionReader: sessionReaders[.codex]!,
@@ -227,7 +227,8 @@ final class Stage {
             transport: transport,
             clock: clock,
             // Keeps the scenarios' failures out of the system log.
-            log: RecordingLog()
+            log: RecordingLog(),
+            initialEnabledProviders: enabledProviders
         )
     }
 
@@ -239,9 +240,9 @@ final class Stage {
 
     /// Opens the panel and waits for the queries of `providers` to finish.
     /// The others may be held by the transport.
-    func openPanel(waitingFor providers: [Provider] = Provider.allCases) async {
+    func openPanel(waitingFor providers: [Provider]? = nil) async {
         core.panelOpened()
-        for provider in providers {
+        for provider in providers ?? Provider.allCases.filter({ core.enabledProviders.contains($0) }) {
             await core.queriesFinished(of: provider)
         }
     }

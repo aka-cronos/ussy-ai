@@ -17,6 +17,7 @@ protocol ProviderAdapter {
 @Observable
 final class ProviderRefresh {
     let provider: Provider
+    private(set) var isEnabled: Bool
 
     var isQuerying: Bool {
         query != nil
@@ -24,6 +25,10 @@ final class ProviderRefresh {
 
     private var reading = ProviderReading.loading
     private var query: Task<Void, Never>?
+    @ObservationIgnored private var queryID: UUID?
+    /// A cancelled query may still be unwinding after a provider is enabled
+    /// again. Keeping it here also lets the test seam await its completion.
+    @ObservationIgnored private var retiredQueries: [UUID: Task<Void, Never>] = [:]
     /// The last session read on a user action, reused by the queries no user
     /// action asked for. `nil` when that read gave no usable session.
     @ObservationIgnored private var session: Session?
@@ -45,9 +50,11 @@ final class ProviderRefresh {
         sessionReader: any SessionReader,
         transport: any HTTPTransport,
         clock: any WallClock,
-        log: any EventLog
+        log: any EventLog,
+        isEnabled: Bool = true
     ) {
         provider = adapter.provider
+        self.isEnabled = isEnabled
         self.adapter = adapter
         self.sessionReader = sessionReader
         self.transport = transport
@@ -59,10 +66,31 @@ final class ProviderRefresh {
         reading.content(in: magnitude, at: now)
     }
 
+    func setEnabled(_ enabled: Bool) {
+        guard isEnabled != enabled else { return }
+        isEnabled = enabled
+        if enabled {
+            reading = wait.rateLimitUntil(at: clock.now()).map { .failed(.rateLimited(until: $0), keeping: nil) } ?? .loading
+            if isPanelOpen { panelOpened() }
+        } else {
+            if let query, let queryID {
+                retiredQueries[queryID] = query
+                query.cancel()
+            }
+            query = nil
+            queryID = nil
+            retryTimer = nil
+            reading = .loading
+            session = nil
+            wait.keepOnlyActiveRateLimit(at: clock.now())
+        }
+    }
+
     /// Reads the session again, which may show the Keychain prompt: opening
     /// the panel is a user action.
     func panelOpened() {
         isPanelOpen = true
+        guard isEnabled else { return }
         switch reading {
         case .failed(.sessionAccessDenied, _):
             // The user said no; only Actualizar asks again.
@@ -92,7 +120,8 @@ final class ProviderRefresh {
 
     /// Returns once no query is in flight.
     func queryFinished() async {
-        await query?.value
+        let tasks = Array(retiredQueries.values) + (query.map { [$0] } ?? [])
+        for task in tasks { await task.value }
     }
 
     /// A query no user action asked for. It never reads the session, so it
@@ -100,7 +129,7 @@ final class ProviderRefresh {
     /// provider rejects a session, or the user denies access to it, only the
     /// user asks again.
     func queryOnItsOwn() {
-        guard !reading.waitsForTheUser, let session, wait.allowsAutomaticQuery(at: clock.now())
+        guard isEnabled, !reading.waitsForTheUser, let session, wait.allowsAutomaticQuery(at: clock.now())
         else { return }
         startQuery(.reuse(session))
     }
@@ -109,14 +138,21 @@ final class ProviderRefresh {
     /// joins the one in flight. A user action reads the session even while
     /// the provider asks to wait, since the wait may be another account's.
     private func startQuery(_ source: SessionSource) {
-        guard query == nil else { return }
+        guard isEnabled, query == nil else { return }
         if case .reuse = source, !wait.allowsAnyQuery(at: clock.now()) { return }
+        let id = UUID()
+        queryID = id
         query = Task {
-            if let result = await read(source) {
+            let result = await read(source, queryID: id)
+            retiredQueries[id] = nil
+            guard queryID == id else { return }
+            queryID = nil
+            query = nil
+            guard isEnabled, !Task.isCancelled else { return }
+            if let result {
                 reading = result
                 planRetry(after: result)
             }
-            query = nil
         }
     }
 
@@ -133,7 +169,7 @@ final class ProviderRefresh {
 
     /// Only while the panel is open. Replaces any retry scheduled before.
     private func scheduleRetry() {
-        guard isPanelOpen, let retryAt = wait.retryAt else { return }
+        guard isEnabled, isPanelOpen, let retryAt = wait.retryAt else { return }
         let timer = UUID()
         retryTimer = timer
         clock.schedule(at: retryAt) { [weak self] in
@@ -146,13 +182,15 @@ final class ProviderRefresh {
 
     /// `nil` when the card keeps what it shows: the session read is the one
     /// to skip, or the provider rejected a reused session.
-    private func read(_ source: SessionSource) async -> ProviderReading? {
+    private func read(_ source: SessionSource, queryID: UUID) async -> ProviderReading? {
+        guard isCurrent(queryID) else { return nil }
         let session: Session
         switch source {
         case .reuse(let reused):
             session = reused
         case .read, .recheck:
             let sessionReading = await sessionReader.read()
+            guard isCurrent(queryID) else { return nil }
             if let failure = Failure(sessionReading) {
                 self.session = nil
                 return .failed(failure, keeping: nil)
@@ -170,9 +208,14 @@ final class ProviderRefresh {
             }
             let queries = wait.allowsAnyQuery(at: clock.now())
             forgetReading(unlessItBelongsTo: read, whileQuerying: queries)
-            guard queries else { return nil }
+            guard queries else {
+                scheduleRetry()
+                return nil
+            }
         }
+        guard isCurrent(queryID) else { return nil }
         let result = await transport.send(adapter.request(for: session))
+        guard isCurrent(queryID) else { return nil }
         let failure: Failure
         switch answer(to: result, at: clock.now()) {
         case .quotas(let quotas): return .quotas(LastValidReading(quotas: quotas, accountID: session.accountID))
@@ -187,6 +230,10 @@ final class ProviderRefresh {
             return nil
         }
         return .failed(failure, keeping: reading.lastValidReading(of: session.accountID))
+    }
+
+    private func isCurrent(_ id: UUID) -> Bool {
+        isEnabled && queryID == id && !Task.isCancelled
     }
 
     /// A reading of another account, or one with an uncertain identity on
@@ -266,6 +313,19 @@ private struct RetryWait {
 
     func allowsAnyQuery(at now: Date) -> Bool {
         blockedUntil.map { now >= $0 } ?? true
+    }
+
+    func rateLimitUntil(at now: Date) -> Date? {
+        blockedUntil.flatMap { $0 > now ? $0 : nil }
+    }
+
+    /// Disabling discards the old account and ordinary retry history, while
+    /// keeping a provider's explicit request to wait.
+    mutating func keepOnlyActiveRateLimit(at now: Date) {
+        let until = rateLimitUntil(at: now)
+        self = RetryWait()
+        blockedUntil = until
+        retryAt = until
     }
 
     /// Only a verified account that differs is another's: with an uncertain

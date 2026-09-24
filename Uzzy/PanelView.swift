@@ -12,19 +12,32 @@ struct PanelView: View {
                 .padding([.horizontal, .top], 16)
                 .padding(.bottom, 10)
 
-            ScrollView {
-                // Recomputes the time left until each reset every minute.
-                TimelineView(.everyMinute) { _ in
-                    VStack(spacing: 8) {
-                        ForEach(core.state.cards, id: \.provider) { card in
-                            CardView(card: card, magnitude: core.state.magnitude, now: core.now())
-                        }
-                    }
-                    .padding([.horizontal, .bottom], 12)
+            if core.state.cards.isEmpty {
+                VStack(spacing: 10) {
+                    Text("No hay proveedores activos").font(.headline)
+                    Text("Activa un proveedor en Ajustes para ver sus cuotas.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Abrir ajustes", action: openSettings)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 32)
+            } else {
+                ScrollView {
+                    // Recomputes the time left until each reset every minute.
+                    TimelineView(.everyMinute) { _ in
+                        VStack(spacing: 8) {
+                            ForEach(core.state.cards, id: \.provider) { card in
+                                CardView(card: card, magnitude: core.state.magnitude, now: core.now())
+                            }
+                        }
+                        .padding([.horizontal, .bottom], 12)
+                    }
+                }
+                .frame(maxHeight: 520)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxHeight: 520)
-            .fixedSize(horizontal: false, vertical: true)
 
             Divider()
             HStack {
@@ -40,21 +53,23 @@ struct PanelView: View {
                 }
                 .accessibilityLabel("Ajustes")
                 .help("Abrir ajustes (⌘,)")
-                Button(action: core.refresh) {
-                    Group {
-                        if core.state.isQuerying {
-                            ProgressView()
-                                .controlSize(.small)
-                                .accessibilityHidden(true)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
+                if !core.state.cards.isEmpty {
+                    Button(action: core.refresh) {
+                        Group {
+                            if core.state.isQuerying {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .accessibilityHidden(true)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
                         }
+                        .frame(width: 18, height: 18)
                     }
-                    .frame(width: 18, height: 18)
+                    .accessibilityLabel("Actualizar")
+                    .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
+                    .help("Consultar las cuotas ahora")
                 }
-                .accessibilityLabel("Actualizar")
-                .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
-                .help("Consultar las cuotas ahora")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
