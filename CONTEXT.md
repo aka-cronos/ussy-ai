@@ -47,3 +47,7 @@ _Avoid_: User, profile, session (the session is how Uzzy reaches the account).
 **Uncertain identity**:
 The state of a session whose account cannot be verified, e.g. because its identity is missing.
 _Avoid_: Unknown account (as if it were a distinct account), anonymous session.
+
+**Disabled provider**:
+A provider the person has switched off in Uzzy. It has no card, and Uzzy does not read its session or query its quotas until the person switches it on again.
+_Avoid_: Hidden card (suggests only a display change), missing session (a separate state).
