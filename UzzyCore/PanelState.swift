@@ -57,9 +57,15 @@ public enum Failure: Sendable, Equatable {
     /// The provider refused the query (403). It may be a restriction other
     /// than the session, so it is not taken as an expired session.
     case accessRefused
-    /// The query failed for any other reason (network, server or an
-    /// unreadable response).
-    case queryFailed
+    /// The provider could not be reached: the network is down.
+    case offline
+    /// The provider did not answer within the time limit.
+    case timedOut
+    /// The provider failed to answer the query (5xx).
+    case serverError(status: Int)
+    /// The provider answered with something the app does not understand, e.g.
+    /// because it changed its format. No alternative route is tried.
+    case incompatibleResponse
 }
 
 /// A subscription quota, independent of the provider's other quotas.

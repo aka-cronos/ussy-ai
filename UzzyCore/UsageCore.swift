@@ -31,11 +31,18 @@ public final class UsageCore {
     private let claudeSessionReader: any SessionReader
     private let transport: any HTTPTransport
     private let clock: any WallClock
+    private let log: any EventLog
 
-    public init(claudeSessionReader: any SessionReader, transport: any HTTPTransport, clock: any WallClock) {
+    public init(
+        claudeSessionReader: any SessionReader,
+        transport: any HTTPTransport,
+        clock: any WallClock,
+        log: any EventLog = SystemLog()
+    ) {
         self.claudeSessionReader = claudeSessionReader
         self.transport = transport
         self.clock = clock
+        self.log = log
     }
 
     public func now() -> Date {
@@ -138,23 +145,48 @@ public final class UsageCore {
             session = read
             claudeSession = read
         }
-        guard case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken))
-        else { return .failed(.queryFailed) }
-        if let rejection = Failure(rejectionStatus: response.status) {
-            guard case .read = source else {
-                // The official app may have renewed the token since it was
-                // read, so the session is not called expired. Automatic
-                // queries stop; the next user action reads it again.
-                claudeSession = nil
-                return nil
-            }
-            return .failed(rejection)
+        let result = await transport.send(Claude.request(accessToken: session.accessToken))
+        let failure: Failure
+        switch Self.answer(to: result, at: clock.now()) {
+        case .quotas(let quotas): return .quotas(quotas)
+        case .failed(let why): failure = why
         }
-        guard response.status == 200,
-              let quotas = Claude.quotas(from: response.body, readAt: clock.now())
-        else { return .failed(.queryFailed) }
-        return .quotas(quotas)
+        log.record(.queryFailed(.claude, failure))
+        if failure.isRejection, case .reuse = source {
+            // The official app may have renewed the token since it was
+            // read, so the session is not called expired. Automatic
+            // queries stop; the next user action reads it again.
+            claudeSession = nil
+            return nil
+        }
+        return .failed(failure)
     }
+
+    /// The quotas in the provider's answer, or why there are none.
+    private static func answer(to result: HTTPResult, at moment: Date) -> Answer {
+        let response: HTTPResponse
+        switch result {
+        case .response(let answer): response = answer
+        case .networkError: return .failed(.offline)
+        case .timeout: return .failed(.timedOut)
+        }
+        switch response.status {
+        case 200:
+            guard let quotas = Claude.quotas(from: response.body, readAt: moment) else { return .failed(.incompatibleResponse) }
+            return .quotas(quotas)
+        case 401: return .failed(.sessionExpired)
+        case 403: return .failed(.accessRefused)
+        case 500...599: return .failed(.serverError(status: response.status))
+        // Anything else means the route or its format changed.
+        default: return .failed(.incompatibleResponse)
+        }
+    }
+}
+
+/// What a provider's answer to a query says.
+private enum Answer {
+    case quotas([QuotaReading])
+    case failed(Failure)
 }
 
 /// Where a query takes the provider's session from.
@@ -174,16 +206,6 @@ private extension Failure {
         case .noSession: self = .noSession
         case .accessDenied: self = .sessionAccessDenied
         case .unknownFormat: self = .incompatibleSession
-        }
-    }
-
-    /// The provider rejected the session (401) or the query (403); `nil`
-    /// for any other status.
-    init?(rejectionStatus status: Int) {
-        switch status {
-        case 401: self = .sessionExpired
-        case 403: self = .accessRefused
-        default: return nil
         }
     }
 

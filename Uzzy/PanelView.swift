@@ -198,8 +198,17 @@ private struct FailureMessage: View {
                 title: "Acceso rechazado",
                 detail: "\(provider.name) rechazó la consulta. Puede ser una restricción de la cuenta; revísala en \(provider.officialApp) y pulsa Actualizar."
             )
-        case .queryFailed:
-            Message(title: "No se pudo consultar", detail: "No hay un dato válido que mostrar.")
+        case .offline:
+            Message(title: "Sin conexión", detail: "No se pudo conectar con \(provider.name). Pulsa Actualizar para reintentar.")
+        case .timedOut:
+            Message(title: "Tiempo agotado", detail: "\(provider.name) no respondió a tiempo. Pulsa Actualizar para reintentar.")
+        case .serverError(let status):
+            Message(title: "Error del servidor", detail: "\(provider.name) respondió con un error (\(status)). Pulsa Actualizar para reintentar.")
+        case .incompatibleResponse:
+            Message(
+                title: "Respuesta incompatible",
+                detail: "\(provider.name) respondió en un formato que \(Format.appName) no reconoce. Puede que haya cambiado su servicio."
+            )
         }
     }
 }
