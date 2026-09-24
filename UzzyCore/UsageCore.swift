@@ -79,10 +79,10 @@ public final class UsageCore {
         providers.forEach { $0.panelClosed() }
     }
 
-    /// Returns once no query is in flight.
-    public func queriesFinished() async {
-        for provider in providers {
-            await provider.queryFinished()
+    /// Returns once no query of `provider`, or of any provider, is in flight.
+    public func queriesFinished(of provider: Provider? = nil) async {
+        for refresh in providers where provider == nil || refresh.provider == provider {
+            await refresh.queryFinished()
         }
     }
 
