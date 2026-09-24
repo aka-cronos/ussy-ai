@@ -1,33 +1,33 @@
 # UssyAi
 
-UssyAi permite consultar las cuotas de suscripción de servicios de inteligencia artificial y sus reinicios.
+UssyAi shows the subscription quotas of AI services and when they reset.
 
 ## Language
 
-**Cuota de suscripción**:
-Límite de uso que un proveedor aplica a una suscripción durante un periodo determinado. Es distinto del gasto monetario y del consumo facturado de una API.
-_Avoid_: Saldo, créditos, consumo (sin especificar qué se mide).
+**Subscription quota**:
+A usage limit a provider applies to a subscription over a given period. Distinct from monetary spend and from billed API consumption.
+_Avoid_: Balance, credits, consumption (without saying what is measured).
 
-**Cuota usada**:
-Parte de una cuota de suscripción que ya se ha consumido dentro del periodo correspondiente.
-_Avoid_: Gasto, costo.
+**Used quota**:
+The part of a subscription quota already consumed within its period.
+_Avoid_: Spend, cost.
 
-**Cuota restante**:
-Parte de una cuota de suscripción que sigue disponible dentro del periodo correspondiente.
-_Avoid_: Dinero disponible, saldo.
+**Remaining quota**:
+The part of a subscription quota still available within its period.
+_Avoid_: Available money, balance.
 
-**Reinicio**:
-Momento indicado por el proveedor en que se renueva una cuota de suscripción.
-_Avoid_: Recarga, renovación de sesión.
+**Reset**:
+The moment, given by the provider, when a subscription quota renews.
+_Avoid_: Top-up, session renewal.
 
-**Último dato válido**:
-Información de una cuota de suscripción obtenida en la última consulta válida para una cuenta concreta, junto con el momento de esa consulta. Tras un fallo de actualización, es un dato desactualizado y no confirma la cuota actual.
-_Avoid_: Cuota actual (cuando no se ha podido actualizar), dato de otra cuenta.
+**Last valid reading**:
+A subscription quota's data from the last valid query for a specific account, together with the time of that query. After a failed refresh it is stale and does not confirm the current quota.
+_Avoid_: Current quota (when it could not be refreshed), another account's data.
 
-**Periodo de cuota**:
-Intervalo al que corresponden el uso y el límite de una cuota de suscripción. Cuotas de periodos distintos son independientes aunque pertenezcan al mismo proveedor.
-_Avoid_: Mes calendario (cuando se trata de un ciclo de facturación), periodo combinado.
+**Quota period**:
+The interval a quota's usage and limit belong to. Quotas with different periods are independent even when they belong to the same provider.
+_Avoid_: Calendar month (when it is a billing cycle), combined period.
 
-**Dato calculado**:
-Valor de una cuota obtenido a partir de otros datos válidos de esa misma cuota, cuenta, unidad y periodo, en lugar de comunicado directamente por el proveedor.
-_Avoid_: Dato reportado por el proveedor (cuando es calculado), estimación (para un cálculo exacto).
+**Calculated value**:
+A quota value derived from other valid data of that same quota, account, unit and period, rather than reported directly by the provider.
+_Avoid_: Provider-reported value (when it is calculated), estimate (for an exact calculation).
