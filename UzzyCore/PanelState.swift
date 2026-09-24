@@ -66,6 +66,9 @@ public enum Failure: Sendable, Equatable {
     case timedOut
     /// The provider failed to answer the query (5xx).
     case serverError(status: Int)
+    /// The provider received too many queries (429). No query is made
+    /// before `until`, the time it asked to wait for, if it said.
+    case rateLimited(until: Date?)
     /// The provider answered with something the app does not understand, e.g.
     /// because it changed its format. No alternative route is tried.
     case incompatibleResponse

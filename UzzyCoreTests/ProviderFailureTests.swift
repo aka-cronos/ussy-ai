@@ -233,6 +233,92 @@ struct ProviderFailureTests {
         #expect(await requestTimes(over: refreshInterval) == [refreshInterval])
     }
 
+    // MARK: Rate limit
+
+    @Test(arguments: ["Retry-After", "retry-after"])
+    func tooManyQueriesShowsUntilWhenTheProviderAsksToWait(header: String) async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: [header: "120"], body: Data())))
+
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.rateLimited(until: Samples.readingMoment.addingTimeInterval(120))))
+    }
+
+    @Test func retryAfterAsADateIsRespected() async {
+        // 2026-09-23T14:42:00Z, ten minutes after the reading moment.
+        await transport.answer(with: .response(HTTPResponse(
+            status: 429, headers: ["Retry-After": "Wed, 23 Sep 2026 14:42:00 GMT"], body: Data()
+        )))
+
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.rateLimited(until: Samples.readingMoment.addingTimeInterval(600))))
+    }
+
+    @Test func actualizarAndOpeningThePanelRespectRetryAfter() async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "120"], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        clock.advance(by: 60)
+        core.refresh()
+        await core.queriesFinished()
+        core.panelClosed()
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 1)
+    }
+
+    @Test func afterRetryAfterTheOpenPanelQueriesOnItsOwn() async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "120"], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .claudeSample)
+        #expect(await requestTimes(over: 120) == [120])
+        #expect(claudeContent().map { if case .quotas = $0 { true } else { false } } == true)
+    }
+
+    @Test func actualizarQueriesOnceRetryAfterHasPassed() async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "120"], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+        core.panelClosed()
+
+        clock.advance(by: 120)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 2)
+    }
+
+    @Test func tooManyQueriesWithoutRetryAfterIsRetriedWithAProgressiveWait() async {
+        await transport.answer(with: .status(429))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.rateLimited(until: nil)))
+        #expect(await requestTimes(over: 100) == [30, 90])
+    }
+
+    @Test func tooManyQueriesKeepsThePreviousReadingAsStale() async {
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "120"], body: Data())))
+        core.refresh()
+        await core.queriesFinished()
+
+        guard case .stale(_, let failure) = claudeContent() else {
+            Issue.record("Expected the stale reading")
+            return
+        }
+        #expect(failure == .rateLimited(until: Samples.readingMoment.addingTimeInterval(120)))
+    }
+
     /// Moves the clock `duration` seconds in 10-second steps and returns when
     /// each new request arrived, in seconds from now.
     func requestTimes(over duration: TimeInterval) async -> [TimeInterval] {

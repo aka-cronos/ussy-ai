@@ -215,6 +215,13 @@ private struct FailureMessage: View {
             Message(title: "Tiempo agotado", detail: "\(provider.name) no respondió a tiempo. Pulsa Actualizar para reintentar.")
         case .serverError(let status):
             Message(title: "Error del servidor", detail: "\(provider.name) respondió con un error (\(status)). Pulsa Actualizar para reintentar.")
+        case .rateLimited(let until?):
+            Message(
+                title: "Demasiadas consultas",
+                detail: "\(provider.name) pidió esperar. Se volverá a consultar a partir de las \(Format.time(until))."
+            )
+        case .rateLimited(nil):
+            Message(title: "Demasiadas consultas", detail: "\(provider.name) pidió esperar. Se volverá a consultar en breve.")
         case .incompatibleResponse:
             Message(
                 title: "Respuesta incompatible",

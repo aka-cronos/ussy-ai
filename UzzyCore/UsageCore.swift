@@ -35,6 +35,9 @@ public final class UsageCore {
     @ObservationIgnored private var claudeFailures = 0
     /// Queries no user action asked for wait until then.
     @ObservationIgnored private var claudeRetryAt: Date?
+    /// No query at all is made before then, not even on Actualizar: Claude
+    /// asked to wait (429 with `Retry-After`).
+    @ObservationIgnored private var claudeWaitsUntil: Date?
     /// Identifies the only scheduled retry that may still run.
     @ObservationIgnored private var claudeRetry: UUID?
 
@@ -80,6 +83,7 @@ public final class UsageCore {
             }
         }
         scheduleNextQuery()
+        scheduleClaudeRetry()
     }
 
     /// The Actualizar button: reads the session and queries even when the
@@ -131,7 +135,7 @@ public final class UsageCore {
     /// Never two queries of the same provider at once: a repeated request
     /// joins the one in flight.
     private func queryClaude(_ source: SessionSource) {
-        guard claudeQuery == nil else { return }
+        guard claudeQuery == nil, claudeWaitsUntil.map({ clock.now() >= $0 }) ?? true else { return }
         claudeQuery = Task {
             if let reading = await readClaude(source) {
                 claude = reading
@@ -142,16 +146,23 @@ public final class UsageCore {
     }
 
     /// Network and server failures are retried on their own, each time
-    /// waiting longer, up to a cap. Anything else ends the wait.
+    /// waiting longer, up to a cap. When Claude says how long to wait, that
+    /// is the wait. Anything else ends the wait.
     private func planClaudeRetry(after reading: ProviderReading) {
+        claudeWaitsUntil = nil
         guard case .failed(let failure, _) = reading, failure.isWorthRetrying else {
             claudeFailures = 0
             claudeRetryAt = nil
             return
         }
         claudeFailures += 1
-        let wait = min(Self.firstRetryWait * pow(2, Double(claudeFailures - 1)), Self.longestRetryWait)
-        claudeRetryAt = clock.now().addingTimeInterval(wait)
+        if case .rateLimited(let until?) = failure {
+            claudeWaitsUntil = until
+            claudeRetryAt = until
+        } else {
+            let wait = min(Self.firstRetryWait * pow(2, Double(claudeFailures - 1)), Self.longestRetryWait)
+            claudeRetryAt = clock.now().addingTimeInterval(wait)
+        }
         scheduleClaudeRetry()
     }
 
@@ -214,6 +225,7 @@ public final class UsageCore {
             return .quotas(quotas)
         case 401: return .failed(.sessionExpired)
         case 403: return .failed(.accessRefused)
+        case 429: return .failed(.rateLimited(until: retryAfter(response.headers, from: moment)))
         case 500...599: return .failed(.serverError(status: response.status))
         // Anything else means the route or its format changed.
         default: return .failed(.incompatibleResponse)
@@ -247,10 +259,11 @@ private extension Failure {
         }
     }
 
-    /// The network or the provider's server failed: it may work shortly.
+    /// The network or the provider's server failed, or the provider asked to
+    /// wait: it may work shortly.
     var isWorthRetrying: Bool {
         switch self {
-        case .offline, .timedOut, .serverError: true
+        case .offline, .timedOut, .serverError, .rateLimited: true
         default: false
         }
     }
@@ -310,4 +323,20 @@ private enum ProviderReading {
 private struct LastValidReading {
     let quotas: [QuotaReading]
     let accountID: String?
+}
+
+/// When a `Retry-After` header, in seconds or as an HTTP date, says to query
+/// again; `nil` without a valid one.
+private func retryAfter(_ headers: [String: String], from moment: Date) -> Date? {
+    guard let value = headers.first(where: { $0.key.caseInsensitiveCompare("Retry-After") == .orderedSame })?.value
+        .trimmingCharacters(in: .whitespaces)
+    else { return nil }
+    if let seconds = Int(value), seconds >= 0 {
+        return moment.addingTimeInterval(TimeInterval(seconds))
+    }
+    let format = DateFormatter()
+    format.locale = Locale(identifier: "en_US_POSIX")
+    format.timeZone = TimeZone(identifier: "GMT")
+    format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+    return format.date(from: value)
 }
