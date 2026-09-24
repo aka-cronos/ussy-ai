@@ -110,7 +110,7 @@ public enum QuotaPeriod: Sendable, Hashable {
     /// The subscription's billing cycle, as long as the provider says.
     case billingCycle
     /// A limit the provider sends separately and names, e.g. of a single
-    /// model ("Sonnet") or of a bag of models ("Cursor Models"), over `period`.
+    /// model ("Sonnet") or a quota bag ("Cursor Models"), over `period`.
     indirect case limit(String, QuotaPeriod)
 }
 

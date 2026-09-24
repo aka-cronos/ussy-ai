@@ -1,7 +1,7 @@
 import Foundation
 
 /// Cursor adapter: builds the usage query of Cursor's session and translates
-/// its response into the two bags of the billing cycle.
+/// its response into the two quota bags of the billing cycle.
 enum Cursor: ProviderAdapter {
     static let provider = Provider.cursor
 
