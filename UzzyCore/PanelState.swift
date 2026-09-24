@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Provider: Sendable, Hashable {
+public enum Provider: Sendable, Hashable, CaseIterable {
     case claude
     case codex
 }

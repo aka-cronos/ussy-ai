@@ -55,11 +55,7 @@ final class ManualClock: WallClock {
 /// Reading a real session can show the Keychain prompt.
 actor ControlledSessionReader: SessionReader {
     private(set) var reads = 0
-    private var reading: SessionReading
-
-    init(answering reading: SessionReading = .session(Samples.session)) {
-        self.reading = reading
-    }
+    private var reading = SessionReading.session(Samples.session)
 
     func read() async -> SessionReading {
         reads += 1
@@ -102,14 +98,14 @@ actor ControlledTransport: HTTPTransport {
 
     /// Answers the requests of `provider`, or of every provider, with `result`.
     func answer(with result: HTTPResult, for provider: Provider? = nil) {
-        for each in provider.map({ [$0] }) ?? Provider.all {
+        for each in provider.map({ [$0] }) ?? Provider.allCases {
             results[each] = result
         }
     }
 
     /// Holds the requests of `provider`, or of every provider.
     func hold(_ provider: Provider? = nil) {
-        held.formUnion(provider.map { [$0] } ?? Provider.all)
+        held.formUnion(provider.map { [$0] } ?? Provider.allCases)
     }
 
     func release() {
@@ -131,8 +127,6 @@ actor ControlledTransport: HTTPTransport {
 }
 
 extension Provider {
-    static let all: [Provider] = [.claude, .codex]
-
     /// The provider a request is sent to, by its host.
     init?(of request: URLRequest) {
         switch request.url?.host {

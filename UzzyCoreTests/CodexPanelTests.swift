@@ -3,7 +3,7 @@ import Testing
 import UzzyCore
 
 /// The Codex card, end to end: the ChatGPT session of Codex CLI, its usage
-/// query and its quotas, named by the length of their window.
+/// query and its quotas, each named by the length of its quota period.
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct CodexPanelTests {
@@ -52,7 +52,7 @@ struct CodexPanelTests {
     }
 
     /// The provider may send its windows in any order, so position says nothing.
-    @Test func windowsAreNamedByTheirLengthNotByTheirPosition() async {
+    @Test func quotaPeriodsAreNamedByTheirLengthNotByTheirPosition() async {
         await transport.answer(with: .codex(rateLimit: """
             {
               "primary_window": {"used_percent": 41, "limit_window_seconds": 604800, "reset_at": 1790575200},
@@ -69,7 +69,7 @@ struct CodexPanelTests {
     }
 
     @Test(arguments: [3_600, 86_400, 2_592_000])
-    func aWindowOfAnotherLengthIsNamedByThatLength(seconds: Int) async {
+    func aQuotaPeriodOfAnotherLengthIsNamedByThatLength(seconds: Int) async {
         await transport.answer(with: .codex(rateLimit: """
             {"primary_window": {"used_percent": 7.5, "limit_window_seconds": \(seconds), "reset_at": 1790186400}}
             """), for: .codex)
@@ -77,7 +77,7 @@ struct CodexPanelTests {
         await openPanel()
 
         #expect(codexContent() == .quotas([
-            Quota(period: .lasting(seconds: seconds),value: .percent(7.5, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment),
+            Quota(period: .lasting(seconds: seconds), value: .percent(7.5, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment),
         ]))
     }
 
@@ -109,7 +109,7 @@ struct CodexPanelTests {
         ]))
     }
 
-    @Test func aWindowWithoutUsageOrResetShowsWhatIsMissingWithoutInventingIt() async {
+    @Test func aQuotaWithoutUsageOrResetShowsWhatIsMissingWithoutInventingIt() async {
         await transport.answer(with: .codex(rateLimit: """
             {
               "primary_window": {"used_percent": null, "limit_window_seconds": 18000, "reset_at": 1790186400},
@@ -182,7 +182,7 @@ struct CodexPanelTests {
     @Test func queriesCodexUsageWithTheAccessTokenAndTheAccount() async {
         await openPanel()
 
-        let requests = await transport.requests.filter { $0.url?.host == "chatgpt.com" }
+        let requests = await transport.requests(to: .codex)
         #expect(requests.count == 1)
         #expect(requests.first?.httpMethod == "GET")
         #expect(requests.first?.url == URL(string: "https://chatgpt.com/backend-api/wham/usage"))
