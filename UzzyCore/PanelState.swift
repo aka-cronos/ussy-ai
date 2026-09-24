@@ -53,6 +53,9 @@ public enum CardContent: Sendable, Equatable {
 public enum Failure: Sendable, Equatable {
     /// The official app has no session on this Mac.
     case noSession
+    /// The official app's session is of a kind that has no subscription
+    /// quotas, e.g. signed in with an API key.
+    case sessionWithoutSubscriptionQuotas
     /// The user denied access to the session (the Keychain prompt).
     case sessionAccessDenied
     /// The session is stored in a format the app does not know. The
@@ -101,8 +104,11 @@ public struct Quota: Sendable, Equatable {
 public enum QuotaPeriod: Sendable, Hashable {
     case fiveHours
     case weekly
-    /// A weekly limit of a single model, e.g. "Sonnet".
-    case weeklyForModel(String)
+    /// A period of another length, named by that length.
+    case lasting(seconds: Int)
+    /// A limit the provider sends separately and names, e.g. of a single
+    /// model ("Sonnet"), over `period`.
+    indirect case limit(String, QuotaPeriod)
 }
 
 /// A quota's value in the panel's magnitude.

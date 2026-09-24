@@ -310,6 +310,7 @@ private extension Failure {
         switch reading {
         case .session: return nil
         case .noSession: self = .noSession
+        case .withoutSubscriptionQuotas: self = .sessionWithoutSubscriptionQuotas
         case .accessDenied: self = .sessionAccessDenied
         case .unknownFormat: self = .incompatibleSession
         }

@@ -195,7 +195,7 @@ struct QuotaPresentationTests {
         #expect(claudeQuotas(core) == [
             Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: readingMoment),
             Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
-            Quota(period: .weeklyForModel("Sonnet"), value: .percent(12.5, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
+            Quota(period: .limit("Sonnet", .weekly), value: .percent(12.5, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
         ])
     }
 
@@ -214,7 +214,7 @@ struct QuotaPresentationTests {
         }
         """)
 
-        #expect(claudeQuotas(core)?.map(\.period) == [.fiveHours, .weekly, .weeklyForModel("Fable")])
+        #expect(claudeQuotas(core)?.map(\.period) == [.fiveHours, .weekly, .limit("Fable", .weekly)])
         #expect(claudeQuotas(core)?.last?.value == .percent(20, calculated: false))
     }
 

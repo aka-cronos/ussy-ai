@@ -32,15 +32,21 @@ public struct CodexCLISessionReader: SessionReader {
 
     /// Decodes only the mode, the access token and the account; the rest of
     /// the file is discarded.
-    static func session(from data: Data) -> SessionReading {
+    private static func session(from data: Data) -> SessionReading {
         guard let stored = try? JSONDecoder().decode(StoredAuth.self, from: data) else { return .unknownFormat }
         switch stored.auth_mode {
         case "chatgpt":
             guard let token = stored.tokens?.access_token, !token.isEmpty else { return .noSession }
-            let accountID = stored.tokens?.account_id.flatMap { $0.isEmpty ? nil : $0 }
+            // The query names the account, so the provider never picks one.
+            // Without it the session is not one this reader knows.
+            guard let accountID = stored.tokens?.account_id, !accountID.isEmpty else { return .unknownFormat }
             return .session(Session(accessToken: token, accountID: accountID))
-        default:
+        // Without its mode, the session cannot be told to be a ChatGPT one.
+        case nil:
             return .unknownFormat
+        // An API key or another mode: no ChatGPT subscription behind it.
+        default:
+            return .withoutSubscriptionQuotas
         }
     }
 

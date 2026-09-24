@@ -154,6 +154,13 @@ extension HTTPResult {
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.codexUsageResponse)
     )
 
+    /// A Codex response, answered with a 200, with the given `rate_limit`
+    /// and `additional_rate_limits` JSON.
+    static func codex(rateLimit: String, additional: String = "null") -> HTTPResult {
+        let body = #"{"plan_type": "plus", "rate_limit": \#(rateLimit), "additional_rate_limits": \#(additional)}"#
+        return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
+    }
+
     /// An empty response with `status`.
     static func status(_ status: Int) -> HTTPResult {
         .response(HTTPResponse(status: status, headers: [:], body: Data()))
