@@ -74,6 +74,11 @@ private struct CardView: View {
             switch card.content {
             case .loading:
                 Message(title: "Consultando cuotas…", detail: "Todavía no hay un dato válido.")
+            case .loadingNewAccount:
+                Message(
+                    title: "Consultando nueva cuenta…",
+                    detail: "La sesión de \(card.provider.officialApp) es de otra cuenta. Se borraron las cifras de la anterior."
+                )
             case .failed(let failure):
                 FailureMessage(failure: failure, provider: card.provider, now: now)
             case .quotas(let quotas):
