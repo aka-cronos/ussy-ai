@@ -154,4 +154,99 @@ struct ProviderFailureTests {
 
         #expect(log.events == [.queryFailed(.claude, failure)])
     }
+
+    // MARK: Retries
+
+    @Test(arguments: [HTTPResult.networkError, .timeout, .status(500)])
+    func networkAndServerFailuresAreRetriedWithAProgressiveWaitUpToACap(result: HTTPResult) async {
+        await transport.answer(with: result)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        let times = await requestTimes(over: 2 * 60 * 60)
+
+        // Seconds after the first query. The 5-minute cadence does not query
+        // while a retry is pending.
+        #expect(times == [30, 90, 210, 450, 930, 1830, 2730, 3630, 4530, 5430, 6330])
+    }
+
+    @Test func aValidReadingResetsTheWait() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+        clock.advance(by: 30)
+        await core.queriesFinished()
+        clock.advance(by: 60)
+        await core.queriesFinished()
+
+        await transport.answer(with: .claudeSample)
+        core.refresh()
+        await core.queriesFinished()
+        await transport.answer(with: .networkError)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await requestTimes(over: 31) == [30])
+    }
+
+    @Test func closingThePanelStopsTheRetries() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        core.panelClosed()
+        clock.advance(by: 60 * 60)
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 1)
+    }
+
+    @Test func wakingFromSleepWaitsForThePendingRetry() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        clock.advance(by: 10)
+        core.systemWoke()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 1)
+    }
+
+    @Test func actualizarDoesNotWaitForTheRetry() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        clock.advance(by: 1)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 2)
+    }
+
+    @Test func anIncompatibleResponseIsNotRetriedBeforeTheCadence() async {
+        await transport.answer(with: .response(HTTPResponse(status: 200, headers: [:], body: Data("<html></html>".utf8))))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(await requestTimes(over: refreshInterval) == [refreshInterval])
+    }
+
+    /// Moves the clock `duration` seconds in 10-second steps and returns when
+    /// each new request arrived, in seconds from now.
+    func requestTimes(over duration: TimeInterval) async -> [TimeInterval] {
+        let start = clock.now()
+        var seen = await transport.requests.count
+        var times: [TimeInterval] = []
+        for _ in 0..<Int((duration / 10).rounded(.up)) {
+            let step = min(10, duration - clock.now().timeIntervalSince(start))
+            clock.advance(by: step)
+            await core.queriesFinished()
+            let count = await transport.requests.count
+            times += Array(repeating: clock.now().timeIntervalSince(start), count: count - seen)
+            seen = count
+        }
+        return times
+    }
 }
