@@ -4,6 +4,9 @@ import Foundation
 /// sources. They contain no real personal data.
 public enum Samples {
     /// Reading moment consistent with the sample responses: 2026-09-23T14:32:00Z.
+    /// A fictional session of the sample account.
+    public static let session = Session(accessToken: "sample-token", accountID: "sample-account")
+
     public static let readingMoment = Date(timeIntervalSince1970: 1_790_173_920)
 
     /// Claude's `GET /api/oauth/usage`. `limits[]` repeats both windows, as the
@@ -30,7 +33,7 @@ public struct SampleSessionReader: SessionReader {
     public init() {}
 
     public func read() async -> SessionReading {
-        .session(Session(accessToken: "sample-token", accountID: "sample-account"))
+        .session(Samples.session)
     }
 }
 

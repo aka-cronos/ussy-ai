@@ -31,7 +31,7 @@ struct SessionStateTests {
     }
 
     @Test func aSessionTheProviderRejectsIsExpired() async {
-        await transport.answer(with: Self.status(401))
+        await transport.answer(with: HTTPResult.status(401))
 
         core.panelOpened()
         await core.queriesFinished()
@@ -40,7 +40,7 @@ struct SessionStateTests {
     }
 
     @Test func aForbiddenQueryIsRefusedAccessAndNotAnExpiredSession() async {
-        await transport.answer(with: Self.status(403))
+        await transport.answer(with: HTTPResult.status(403))
 
         core.panelOpened()
         await core.queriesFinished()
@@ -71,18 +71,19 @@ struct SessionStateTests {
 
     @Test(arguments: [401, 403])
     func afterARejectionTheCadenceAndWakingDoNotRetry(status: Int) async {
-        await transport.answer(with: Self.status(status))
+        await transport.answer(with: .status(status))
         core.panelOpened()
         await core.queriesFinished()
 
         await runTheCadenceAndWake()
 
         #expect(await transport.requests.count == 1)
+        #expect(await sessionReader.reads == 1)
     }
 
-    @Test(arguments: [401, 403])
-    func afterARejectionReopeningWithTheSameSessionDoesNotRetry(status: Int) async {
-        await transport.answer(with: Self.status(status))
+    @Test(arguments: [(401, Failure.sessionExpired), (403, .accessRefused)])
+    func afterARejectionReopeningWithTheSameSessionDoesNotRetry(status: Int, failure: Failure) async {
+        await transport.answer(with: HTTPResult.status(status))
         core.panelOpened()
         await core.queriesFinished()
         core.panelClosed()
@@ -92,18 +93,18 @@ struct SessionStateTests {
         await core.queriesFinished()
 
         #expect(await transport.requests.count == 1)
-        #expect(claudeContent() == .failed(status == 401 ? .sessionExpired : .accessRefused))
+        #expect(claudeContent() == .failed(failure))
     }
 
     @Test(arguments: [401, 403])
     func afterARejectionReopeningWithARenewedSessionQueriesAgain(status: Int) async {
-        await transport.answer(with: Self.status(status))
+        await transport.answer(with: HTTPResult.status(status))
         core.panelOpened()
         await core.queriesFinished()
         core.panelClosed()
 
         await sessionReader.answer(with: .session(Session(accessToken: "renewed-token", accountID: "sample-account")))
-        await transport.answer(with: Self.sampleResponse)
+        await transport.answer(with: .claudeSample)
         core.panelOpened()
         await core.queriesFinished()
 
@@ -114,11 +115,11 @@ struct SessionStateTests {
 
     @Test(arguments: [401, 403])
     func afterARejectionActualizarQueriesAgainEvenWithTheSameSession(status: Int) async {
-        await transport.answer(with: Self.status(status))
+        await transport.answer(with: HTTPResult.status(status))
         core.panelOpened()
         await core.queriesFinished()
 
-        await transport.answer(with: Self.sampleResponse)
+        await transport.answer(with: .claudeSample)
         core.refresh()
         await core.queriesFinished()
 
@@ -146,7 +147,7 @@ struct SessionStateTests {
         core.panelOpened()
         await core.queriesFinished()
 
-        await sessionReader.answer(with: .session(Session(accessToken: "sample-token", accountID: "sample-account")))
+        await sessionReader.answer(with: .session(Samples.session))
         core.refresh()
         await core.queriesFinished()
 
@@ -176,6 +177,32 @@ struct SessionStateTests {
         #expect(await transport.requests.isEmpty)
     }
 
+    /// The official app may have renewed the token since it was read, so a
+    /// query no user action asked for does not claim the session expired:
+    /// it keeps the card and leaves the next query to the user.
+    @Test(arguments: [401, 403])
+    func aRejectionOfAReusedSessionKeepsTheCardAndWaitsForTheUser(status: Int) async {
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .status(status))
+        await runTheCadenceAndWake()
+
+        #expect(await transport.requests.count == 2)
+        #expect(await sessionReader.reads == 1)
+        #expect(claudeReadAt() == Samples.readingMoment)
+
+        await sessionReader.answer(with: .session(Session(accessToken: "renewed-token", accountID: "sample-account")))
+        await transport.answer(with: .claudeSample)
+        core.panelClosed()
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(await sessionReader.reads == 2)
+        #expect(await transport.requests.last?.value(forHTTPHeaderField: "Authorization") == "Bearer renewed-token")
+        #expect(claudeReadAt() == clock.now())
+    }
+
     /// Three ticks of the 5-minute cadence, then waking from sleep: the
     /// queries no user action asks for.
     func runTheCadenceAndWake() async {
@@ -192,11 +219,4 @@ struct SessionStateTests {
         return quotas.first?.readAt
     }
 
-    static let sampleResponse = HTTPResult.response(
-        HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.claudeUsageResponse)
-    )
-
-    static func status(_ status: Int) -> HTTPResult {
-        .response(HTTPResponse(status: status, headers: [:], body: Data()))
-    }
 }

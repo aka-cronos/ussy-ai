@@ -54,12 +54,12 @@ public final class UsageCore {
         case .failed(.sessionAccessDenied):
             // The user said no; only Actualizar asks again.
             break
-        case .failed(.sessionExpired), .failed(.accessRefused):
+        case .failed(let failure) where failure.isRejection:
             // Only a session that changed since the rejection is worth a query.
-            queryClaude(.read(unlessItIs: claudeSession))
+            queryClaude(.read(skipping: claudeSession))
         default:
             if !claude.isFresh(at: clock.now()) {
-                queryClaude(.read(unlessItIs: nil))
+                queryClaude(.read(skipping: nil))
             }
         }
         scheduleNextQuery()
@@ -68,7 +68,7 @@ public final class UsageCore {
     /// The Actualizar button: reads the session and queries even when the
     /// reading is fresh or the session was rejected.
     public func refresh() {
-        queryClaude(.read(unlessItIs: nil))
+        queryClaude(.read(skipping: nil))
     }
 
     /// Queries on waking from sleep while the panel is open, and restarts the
@@ -102,8 +102,8 @@ public final class UsageCore {
 
     /// A query no user action asked for. It never reads the session, so it
     /// never shows the Keychain prompt: it reuses the last one read. After the
-    /// provider rejects the session, or the user denies access to it, only
-    /// the user asks again.
+    /// provider rejects a session, or the user denies access to it, only the
+    /// user asks again.
     private func queryClaudeOnItsOwn() {
         guard !claude.waitsForTheUser, let claudeSession else { return }
         queryClaude(.reuse(claudeSession))
@@ -121,7 +121,8 @@ public final class UsageCore {
         }
     }
 
-    /// `nil` when the session read is the one to skip, so nothing was queried.
+    /// `nil` when the card keeps what it shows: the session read is the one
+    /// to skip, or the provider rejected a reused session.
     private func readClaude(_ source: SessionSource) async -> ProviderReading? {
         let session: Session
         switch source {
@@ -129,20 +130,25 @@ public final class UsageCore {
             session = reused
         case .read(let skipped):
             let reading = await claudeSessionReader.read()
-            guard case .session(let read) = reading else {
+            if let failure = Failure(reading) {
                 claudeSession = nil
-                return .failed(Failure(reading))
+                return .failed(failure)
             }
-            guard read != skipped else { return nil }
+            guard case .session(let read) = reading, read != skipped else { return nil }
             session = read
             claudeSession = read
         }
         guard case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken))
         else { return .failed(.queryFailed) }
-        switch response.status {
-        case 401: return .failed(.sessionExpired)
-        case 403: return .failed(.accessRefused)
-        default: break
+        if let rejection = Failure(rejectionStatus: response.status) {
+            guard case .read = source else {
+                // The official app may have renewed the token since it was
+                // read, so the session is not called expired. Automatic
+                // queries stop; the next user action reads it again.
+                claudeSession = nil
+                return nil
+            }
+            return .failed(rejection)
         }
         guard response.status == 200,
               let quotas = Claude.quotas(from: response.body, readAt: clock.now())
@@ -153,21 +159,36 @@ public final class UsageCore {
 
 /// Where a query takes the provider's session from.
 private enum SessionSource {
-    /// Reads it, which may show the Keychain prompt, and skips the query when
-    /// it is still `unlessItIs`.
-    case read(unlessItIs: Session?)
+    /// Reads it, which may show the Keychain prompt. Skips the query when the
+    /// session read is `skipping`, e.g. the one the provider rejected.
+    case read(skipping: Session?)
     /// Reuses a session read before, without reading it again.
     case reuse(Session)
 }
 
 private extension Failure {
-    /// Why a session reading gave no session.
-    init(_ reading: SessionReading) {
+    /// Why a session reading gave no session; `nil` when it gave one.
+    init?(_ reading: SessionReading) {
         switch reading {
-        case .noSession, .session: self = .noSession
+        case .session: return nil
+        case .noSession: self = .noSession
         case .accessDenied: self = .sessionAccessDenied
         case .unknownFormat: self = .incompatibleSession
         }
+    }
+
+    /// The provider rejected the session (401) or the query (403); `nil`
+    /// for any other status.
+    init?(rejectionStatus status: Int) {
+        switch status {
+        case 401: self = .sessionExpired
+        case 403: self = .accessRefused
+        default: return nil
+        }
+    }
+
+    var isRejection: Bool {
+        self == .sessionExpired || self == .accessRefused
     }
 }
 
@@ -184,10 +205,8 @@ private enum ProviderReading {
 
     /// The provider rejected the session, or the user denied access to it.
     var waitsForTheUser: Bool {
-        switch self {
-        case .failed(.sessionExpired), .failed(.accessRefused), .failed(.sessionAccessDenied): true
-        default: false
-        }
+        guard case .failed(let failure) = self else { return false }
+        return failure.isRejection || failure == .sessionAccessDenied
     }
 
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {

@@ -42,6 +42,7 @@ public enum CardContent: Sendable, Equatable {
     case failed(Failure)
 }
 
+/// Why a card has no quotas to show.
 public enum Failure: Sendable, Equatable {
     /// The official app has no session on this Mac.
     case noSession
@@ -56,7 +57,8 @@ public enum Failure: Sendable, Equatable {
     /// The provider refused the query (403). It may be a restriction other
     /// than the session, so it is not taken as an expired session.
     case accessRefused
-    /// The query failed. Specific reasons arrive with the failure states.
+    /// The query failed for any other reason (network, server or an
+    /// unreadable response).
     case queryFailed
 }
 
