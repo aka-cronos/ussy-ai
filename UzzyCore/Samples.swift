@@ -1,12 +1,15 @@
 import Foundation
 
+// Fictional data for the tests and the debug scenarios; never in a Release build.
+#if DEBUG
+
 /// Sanitized sample responses, in the formats observed while validating the
 /// sources. They contain no real personal data.
 public enum Samples {
-    /// Reading moment consistent with the sample responses: 2026-09-23T14:32:00Z.
     /// A fictional session of the sample account.
     public static let session = Session(accessToken: "sample-token", accountID: "sample-account")
 
+    /// Reading moment consistent with the sample responses: 2026-09-23T14:32:00Z.
     public static let readingMoment = Date(timeIntervalSince1970: 1_790_173_920)
 
     /// Claude's `GET /api/oauth/usage`. `limits[]` repeats both windows, as the
@@ -91,54 +94,4 @@ public enum Samples {
     """#.utf8)
 }
 
-public struct SampleSessionReader: SessionReader {
-    public init() {}
-
-    public func read() async -> SessionReading {
-        .session(Samples.session)
-    }
-}
-
-/// Always answers each provider with the same response, and records the
-/// requests it receives.
-public actor SampleTransport: HTTPTransport {
-    public private(set) var requests: [URLRequest] = []
-    private let claudeResponse: Data
-    private let codexResponse: Data
-    private let cursorResponse: Data
-
-    public init(
-        claudeResponse: Data = Samples.claudeUsageResponse,
-        codexResponse: Data = Samples.codexUsageResponse,
-        cursorResponse: Data = Samples.cursorUsageResponse
-    ) {
-        self.claudeResponse = claudeResponse
-        self.codexResponse = codexResponse
-        self.cursorResponse = cursorResponse
-    }
-
-    public func send(_ request: URLRequest) async -> HTTPResult {
-        requests.append(request)
-        let body = switch request.url?.host {
-        case "chatgpt.com": codexResponse
-        case "api2.cursor.sh": cursorResponse
-        default: claudeResponse
-        }
-        return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: body))
-    }
-}
-
-public struct FixedClock: WallClock {
-    private let moment: Date
-
-    public init(_ moment: Date) {
-        self.moment = moment
-    }
-
-    public func now() -> Date {
-        moment
-    }
-
-    /// The clock never moves, so scheduled work never runs.
-    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {}
-}
+#endif
