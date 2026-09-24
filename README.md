@@ -1,41 +1,54 @@
 # UssyAi
 
-App de barra de menús para macOS que muestra de un vistazo las cuotas de suscripción de **Claude**, **Codex** y **Cursor**: cuánto has usado, cuánto te queda y cuándo se reinicia cada una.
+A macOS menu bar app that shows the subscription quotas of **Claude**, **Codex** and **Cursor** at a glance: how much you have used, how much is left and when each one resets.
 
-> **Estado:** en diseño. El MVP está especificado en [#11](https://github.com/aka-cronos/ussy-ai/issues/11), pero aún no hay código de la app.
+> **Status:** in development. The MVP is specified in [#11](https://github.com/aka-cronos/ussy-ai/issues/11). For now, the app shows the Claude card with sample data.
 
-## Qué hace
+## What it does
 
-- Un icono fijo en la barra de menús abre un panel con una tarjeta por proveedor.
-- Cada cuota se muestra por separado (p. ej. «5 horas» y «Semanal»), con su barra, su reinicio en hora local y la hora de la última lectura. Nunca se combinan cuotas en un porcentaje único.
-- Selector entre cuota usada y cuota restante.
-- Si un proveedor falla, su tarjeta explica por qué (sin sesión, sesión vencida, sin conexión, respuesta incompatible…) y las demás siguen funcionando. Un dato ausente nunca se muestra como cero.
+- A fixed menu bar icon opens a panel with one card per provider.
+- Each quota is shown separately (e.g. "5 horas" and "Semanal"), with its own bar, its reset in local time and the time of the last reading. Quotas are never combined into a single percentage.
+- A switch between used quota and remaining quota.
+- If a provider fails, its card explains why (no session, expired session, offline, incompatible response…) and the others keep working. Missing data is never shown as zero.
 
-## Privacidad
+The app's interface is in Spanish.
 
-- Reutiliza **en solo lectura** las sesiones que ya existen en Claude Code, Codex CLI y Cursor. No pide contraseñas, no inicia sesión, no renueva tokens y no escribe credenciales.
-- Solo se conecta a `api.anthropic.com`, `chatgpt.com` y `api2.cursor.sh`. Sin telemetría ni servidor propio.
-- Las cuotas viven solo en memoria; no se guardan en disco.
+## Privacy
 
-## Aviso
+- Reuses, **read-only**, the sessions that already exist in Claude Code, Codex CLI and Cursor. It never asks for passwords, signs in, refreshes tokens or writes credentials.
+- Only connects to `api.anthropic.com`, `chatgpt.com` and `api2.cursor.sh`. No telemetry and no server of its own.
+- Quotas live only in memory; nothing is written to disk.
 
-Las rutas que usa la app para consultar cuotas son **internas y no documentadas** por los proveedores. Pueden cambiar o dejar de funcionar sin aviso. UssyAi no está afiliada a Anthropic, OpenAI ni Anysphere.
+## Disclaimer
 
-## Requisitos (previstos)
+The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice. UssyAi is not affiliated with Anthropic, OpenAI or Anysphere.
+
+## Requirements (planned)
 
 - macOS 27, Apple Silicon.
-- Xcode completo para compilar.
-- Sesión iniciada en Claude Code, Codex CLI (modo ChatGPT) y/o Cursor.
+- Full Xcode to build.
+- A signed-in session in Claude Code, Codex CLI (ChatGPT mode) and/or Cursor.
 
-## Estructura del repositorio
+## Build and test
 
-| Ruta | Contenido |
+```sh
+xcodebuild test -scheme UssyAi -destination 'platform=macOS,arch=arm64'
+xcodebuild build -scheme UssyAi -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+open build/Build/Products/Debug/UssyAi.app
+```
+
+## Repository layout
+
+| Path | Contents |
 |---|---|
-| `CONTEXT.md` | Vocabulario del dominio (cuota usada, reinicio, último dato válido…). |
-| `docs/agents/` | Convenciones para agentes: issues, etiquetas de triaje, documentación de dominio. |
+| `UssyAi/` | App: menu bar icon, panel and SwiftUI presentation. |
+| `UssyCore/` | Usage core: panel state, provider adapters and injectable dependencies. |
+| `UssyCoreTests/` | Tests through the usage core, with fake dependencies. |
+| `CONTEXT.md` | Domain vocabulary (used quota, reset, last valid reading…). |
+| `docs/agents/` | Agent conventions: issues, triage labels, domain docs. |
 
-Las decisiones de diseño están en los [issues](https://github.com/aka-cronos/ussy-ai/issues?q=is%3Aissue) del mapa [#1](https://github.com/aka-cronos/ussy-ai/issues/1).
+Design decisions live in the [issues](https://github.com/aka-cronos/ussy-ai/issues?q=is%3Aissue) of map [#1](https://github.com/aka-cronos/ussy-ai/issues/1).
 
-## Licencia
+## License
 
 [MIT](LICENSE).
