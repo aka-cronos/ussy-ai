@@ -15,7 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         clock: SystemClock(),
         initialMagnitude: QuotaMagnitude(
             rawValue: UserDefaults.standard.string(forKey: "displayMagnitude") ?? ""
-        ) ?? .used
+        ) ?? .used,
+        initialEnabledProviders: ProviderVisibilityPreferences.enabledProviders(in: .standard)
     )
     private var settingsWindow: NSWindow?
     #if DEBUG
@@ -152,18 +153,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func showSettings() {
+        core.panelClosed()
         closePanel()
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 240),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 310),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "Ajustes"
-            window.contentViewController = NSHostingController(rootView: SettingsView())
+            window.contentViewController = NSHostingController(rootView: SettingsView { [weak self] provider, enabled in
+                self?.setProviderEnabled(enabled, for: provider)
+            })
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window
         }
         NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func setProviderEnabled(_ enabled: Bool, for provider: Provider) {
+        realCore.setEnabled(enabled, for: provider)
+        #if DEBUG
+        if scenarios.core !== realCore {
+            scenarios.core.setEnabled(enabled, for: provider)
+        }
+        #endif
     }
 
     func popoverDidClose(_ notification: Notification) {
