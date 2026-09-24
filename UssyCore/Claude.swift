@@ -11,21 +11,40 @@ enum Claude {
     }
 
     /// Returns `nil` when the response does not have the expected format.
+    ///
+    /// `limits[]` repeats the windows (`session`, `weekly_all`) and carries the
+    /// per-model limits (`weekly_scoped`), so a quota can arrive more than once.
+    /// Every copy goes into the reading, which decides whether they agree.
     static func quotas(from body: Data, readAt moment: Date) -> [QuotaReading]? {
         guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return nil }
-        let windows: [(QuotaPeriod, Window?)] = [(.fiveHours, response.five_hour), (.weekly, response.seven_day)]
-        // A missing window is still a quota: it shows as unavailable.
-        let baseWindows = windows.map { period, window in reading(period, window, at: moment) }
-        // Per-model limits only count when sent explicitly and with data.
-        let models: [(String, Window?)] = [("Sonnet", response.seven_day_sonnet), ("Opus", response.seven_day_opus)]
-        let perModel = models.compactMap { model, window in
-            window?.utilization == nil ? nil : reading(.weeklyForModel(model), window, at: moment)
+        let limits = response.limits ?? []
+        func copies(_ window: Window?, kind: String, model: String? = nil) -> [Window] {
+            [window].compactMap { $0 }
+                + limits.filter { $0.kind == kind && $0.scope?.model?.display_name == model }.map(\.window)
         }
-        return baseWindows + perModel
+
+        // A missing window is still a quota: it shows as unavailable.
+        let base = [
+            reading(.fiveHours, copies(response.five_hour, kind: "session"), at: moment),
+            reading(.weekly, copies(response.seven_day, kind: "weekly_all"), at: moment),
+        ]
+        // Per-model limits only count when sent explicitly and with data.
+        let legacy = ["Sonnet": response.seven_day_sonnet, "Opus": response.seven_day_opus]
+        let models = ["Sonnet", "Opus"] + limits.compactMap { $0.kind == "weekly_scoped" ? $0.scope?.model?.display_name : nil }
+        let perModel = models.uniqued().compactMap { model in
+            let windows = copies(legacy[model] ?? nil, kind: "weekly_scoped", model: model)
+            return windows.contains { $0.utilization != nil } ? reading(.weeklyForModel(model), windows, at: moment) : nil
+        }
+        return base + perModel
     }
 
-    private static func reading(_ period: QuotaPeriod, _ window: Window?, at moment: Date) -> QuotaReading {
-        QuotaReading(period: period, usedPercent: window?.utilization, reset: reset(window?.resets_at), readAt: moment)
+    private static func reading(_ period: QuotaPeriod, _ windows: [Window], at moment: Date) -> QuotaReading {
+        QuotaReading(
+            period: period,
+            usedPercents: windows.compactMap(\.utilization),
+            resets: windows.compactMap { reset($0.resets_at) },
+            readAt: moment
+        )
     }
 
     private static func reset(_ text: String?) -> Date? {
@@ -39,10 +58,36 @@ enum Claude {
         let seven_day: Window?
         let seven_day_sonnet: Window?
         let seven_day_opus: Window?
+        let limits: [Limit]?
     }
 
     private struct Window: Decodable {
         let utilization: Double?
         let resets_at: String?
+    }
+
+    /// An entry of `limits[]`. Its `percent` is 0–100, like `utilization`.
+    private struct Limit: Decodable {
+        let kind: String?
+        let percent: Double?
+        let resets_at: String?
+        let scope: Scope?
+
+        var window: Window { Window(utilization: percent, resets_at: resets_at) }
+
+        struct Scope: Decodable {
+            let model: Model?
+        }
+
+        struct Model: Decodable {
+            let display_name: String?
+        }
+    }
+}
+
+private extension Array where Element: Hashable {
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
 }

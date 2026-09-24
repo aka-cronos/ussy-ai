@@ -189,6 +189,97 @@ struct QuotaPresentationTests {
         ])
     }
 
+    @Test func perModelLimitsAreAlsoReadFromTheScopedEntriesOfLimits() async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "seven_day_sonnet": null,
+          "limits": [
+            {"kind": "weekly_scoped", "percent": 20.0, "resets_at": "2026-09-25T09:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "Fable"}}},
+            {"kind": "weekly_scoped", "percent": null, "resets_at": null,
+             "scope": {"model": {"display_name": "Opus"}}}
+          ]
+        }
+        """)
+
+        #expect(claudeQuotas(core)?.map(\.period) == [.fiveHours, .weekly, .weeklyForModel("Fable")])
+        #expect(claudeQuotas(core)?.last?.value == .percent(20, calculated: false))
+    }
+
+    @Test func aQuotaReportedOnlyInLimitsIsShown() async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": null,
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [{"kind": "session", "percent": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"}]
+        }
+        """)
+
+        #expect(claudeQuotas(core)?.first == Quota(
+            period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: readingMoment
+        ))
+    }
+
+    @Test(arguments: [35.0, 35.8])
+    func copiesOfAQuotaThatAgreeShowItsFigureOnce(sessionPercent: Double) async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [{"kind": "session", "percent": \(sessionPercent), "resets_at": "2026-09-23T17:00:00.000000+00:00"}]
+        }
+        """)
+
+        #expect(claudeQuotas(core)?.map(\.value) == [.percent(35, calculated: false), .percent(62, calculated: false)])
+    }
+
+    @Test func contradictoryFiguresOfAQuotaAreUninterpretableAndTheOtherStaysVisible() async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [
+            {"kind": "session", "percent": 60.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+            {"kind": "weekly_all", "percent": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"}
+          ]
+        }
+        """)
+
+        #expect(claudeQuotas(core)?.map(\.value) == [.uninterpretable, .percent(62, calculated: false)])
+
+        core.show(.remaining)
+
+        #expect(claudeQuotas(core)?.map(\.value) == [.uninterpretable, .percent(38, calculated: true)])
+    }
+
+    @Test func aCopyOutsideZeroToHundredMakesTheQuotaUninterpretable() async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [{"kind": "session", "percent": 135.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"}]
+        }
+        """)
+
+        #expect(claudeQuotas(core)?.first?.value == .uninterpretable)
+    }
+
+    @Test func contradictoryResetsOfAQuotaAreUnknownAndTheFigureIsKept() async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [{"kind": "session", "percent": 35.0, "resets_at": "2026-09-23T19:00:00.000000+00:00"}]
+        }
+        """)
+
+        #expect(claudeQuotas(core)?.first == Quota(
+            period: .fiveHours, value: .percent(35, calculated: false), reset: .unknown, readAt: readingMoment
+        ))
+    }
+
     @Test func amountsCreditsExtraSpendAndOpaqueFieldsAreNeverShown() async {
         let core = await openedPanel(claudeResponse: """
         {
