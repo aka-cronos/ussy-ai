@@ -75,14 +75,14 @@ private struct CardView: View {
             case .loading:
                 Message(title: "Consultando cuotas…", detail: "Todavía no hay un dato válido.")
             case .failed(let failure):
-                FailureMessage(failure: failure, provider: card.provider)
+                FailureMessage(failure: failure, provider: card.provider, now: now)
             case .quotas(let quotas):
                 ForEach(quotas, id: \.period) { quota in
                     QuotaView(quota: quota, magnitude: magnitude, now: now)
                 }
             case .stale(let quotas, let failure):
                 // Why the figures below could not be refreshed.
-                FailureMessage(failure: failure, provider: card.provider)
+                FailureMessage(failure: failure, provider: card.provider, now: now)
                 ForEach(quotas, id: \.period) { quota in
                     QuotaView(quota: quota, magnitude: magnitude, now: now)
                 }
@@ -187,6 +187,7 @@ private struct Message: View {
 private struct FailureMessage: View {
     let failure: Failure
     let provider: Provider
+    let now: Date
 
     var body: some View {
         switch failure {
@@ -215,13 +216,9 @@ private struct FailureMessage: View {
             Message(title: "Tiempo agotado", detail: "\(provider.name) no respondió a tiempo. Pulsa Actualizar para reintentar.")
         case .serverError(let status):
             Message(title: "Error del servidor", detail: "\(provider.name) respondió con un error (\(status)). Pulsa Actualizar para reintentar.")
-        case .rateLimited(let until?):
-            Message(
-                title: "Demasiadas consultas",
-                detail: "\(provider.name) pidió esperar. Se volverá a consultar a partir de las \(Format.time(until))."
-            )
-        case .rateLimited(nil):
-            Message(title: "Demasiadas consultas", detail: "\(provider.name) pidió esperar. Se volverá a consultar en breve.")
+        case .rateLimited(let until):
+            let when = until.map { "a partir de: \(Format.dayAndTime($0, now: now))" } ?? "en breve"
+            Message(title: "Demasiadas consultas", detail: "\(provider.name) pidió esperar. Se volverá a consultar \(when).")
         case .incompatibleResponse:
             Message(
                 title: "Respuesta incompatible",

@@ -25,8 +25,13 @@ enum Format {
         case .pendingConfirmation:
             return "Reinicio pendiente de confirmar"
         case .at(let date):
-            return "Reinicio: \(day(date, now: now)), \(time(date)) · en \(countdown(date.timeIntervalSince(now)))"
+            return "Reinicio: \(dayAndTime(date, now: now)) · en \(countdown(date.timeIntervalSince(now)))"
         }
+    }
+
+    /// E.g. "Hoy, 14:42", so a moment on another day is not mistaken for today.
+    static func dayAndTime(_ date: Date, now: Date) -> String {
+        "\(day(date, now: now)), \(time(date))"
     }
 
     private static func day(_ date: Date, now: Date) -> String {
