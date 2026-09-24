@@ -48,19 +48,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         guard let button = statusItem?.button else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate()
-        watchForDismissal()
+        watchWhileOpen()
         Task { await core.panelOpened() }
     }
 
     /// Closes the panel like a macOS menu: on Escape or on a click in another app.
-    private func watchForDismissal() {
+    /// Also quits on ⌘Q, since the app has no menu bar menu to carry that shortcut.
+    private func watchWhileOpen() {
         let escapeKeyCode: UInt16 = 53
-        if let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            guard event.keyCode == escapeKeyCode else { return event }
-            self?.closePanel()
-            return nil
+        if let keyDown = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            if event.keyCode == escapeKeyCode {
+                self?.closePanel()
+                return nil
+            }
+            if event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+               event.charactersIgnoringModifiers?.lowercased() == "q" {
+                NSApp.terminate(nil)
+                return nil
+            }
+            return event
         }) {
-            eventMonitors.append(escape)
+            eventMonitors.append(keyDown)
         }
         // Clicks on the status item also arrive as global events; the icon
         // toggles the panel itself, so they are left to `togglePanel`.
