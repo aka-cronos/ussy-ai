@@ -82,21 +82,43 @@ private struct CardView: View {
             case .failed(let failure):
                 FailureMessage(failure: failure, provider: card.provider, now: now)
             case .quotas(let quotas):
-                ForEach(quotas, id: \.period) { quota in
-                    QuotaView(quota: quota, magnitude: magnitude, now: now)
-                }
+                QuotasView(quotas: quotas, magnitude: magnitude, now: now)
             case .stale(let quotas, let failure):
                 // Why the figures below could not be refreshed.
                 FailureMessage(failure: failure, provider: card.provider, now: now)
-                ForEach(quotas, id: \.period) { quota in
-                    QuotaView(quota: quota, magnitude: magnitude, now: now)
-                }
+                QuotasView(quotas: quotas, magnitude: magnitude, now: now)
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+    }
+}
+
+private struct QuotasView: View {
+    let quotas: [Quota]
+    let magnitude: QuotaMagnitude
+    let now: Date
+
+    private var lastReadAt: Date? {
+        // Every valid figure in a provider response has the same query time.
+        // A missing or uninterpretable figure has no reading to date.
+        quotas.compactMap { quota -> Date? in
+            if case .percent = quota.value { quota.readAt } else { nil }
+        }.min()
+    }
+
+    var body: some View {
+        ForEach(quotas, id: \.period) { quota in
+            QuotaView(quota: quota, magnitude: magnitude, now: now)
+        }
+        if let lastReadAt {
+            Text("Última lectura: \(Format.dayAndTime(lastReadAt, now: now))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 12)
+        }
     }
 }
 
@@ -130,7 +152,6 @@ private struct QuotaView: View {
                         Text("Calculado: 100 − usado")
                     }
                     Text(Format.reset(quota.reset, now: now))
-                    Text("Última lectura: \(Format.time(quota.readAt))")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -208,6 +229,23 @@ private struct FailureMessage: View {
                 title: "Sin acceso a la sesión",
                 detail: "Se denegó el acceso a la sesión de \(provider.officialApp) en el llavero. Pulsa Actualizar para volver a pedirlo."
             )
+        case .sessionStoreUnavailable:
+            if provider == .claude {
+                Message(
+                    title: "Llavero no disponible",
+                    detail: "No se pudo leer la sesión de Claude Code en el llavero. Comprueba que esté desbloqueado y pulsa Actualizar."
+                )
+            } else {
+                Message(
+                    title: "No se pudo leer la sesión",
+                    detail: "No se pudo abrir la sesión de \(provider.officialApp). Comprueba que la app oficial funcione y pulsa Actualizar."
+                )
+            }
+        case .sessionStoreBusy:
+            Message(
+                title: "Sesión ocupada",
+                detail: "La base de datos de \(provider.officialApp) está ocupada. Espera un momento y pulsa Actualizar."
+            )
         case .incompatibleSession:
             Message(
                 title: "Sesión incompatible",
@@ -233,6 +271,11 @@ private struct FailureMessage: View {
             Message(
                 title: "Respuesta incompatible",
                 detail: "\(provider.name) respondió en un formato que \(Format.appName) no reconoce. Puede que haya cambiado su servicio."
+            )
+        case .incompatibleResetFormat:
+            Message(
+                title: "Reinicio de Cursor incompatible",
+                detail: "Cursor envió la fecha de reinicio en un formato que \(Format.appName) no reconoce. Pulsa Actualizar; si continúa, la integración necesita una actualización."
             )
         }
     }

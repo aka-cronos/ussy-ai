@@ -26,7 +26,7 @@ public struct ClaudeCodeSessionReader: SessionReader {
         case .found(let data): credentials = data
         case .notFound: return .noSession
         case .denied: return .accessDenied
-        case .failed: return .unknownFormat
+        case .failed: return .storeUnavailable
         }
         // Decodes only the access token; the rest of the item is discarded.
         guard let stored = try? JSONDecoder().decode(StoredCredentials.self, from: credentials) else {
@@ -57,8 +57,8 @@ public struct ClaudeCodeSessionReader: SessionReader {
             return .found(data)
         case errSecItemNotFound:
             return .notFound
-        // The user denied the prompt. `errSecInteractionNotAllowed` (the prompt
-        // could not be shown) is not a denial and falls through to `.failed`.
+        // The user denied the prompt. If the prompt could not be shown, the
+        // Keychain is unavailable rather than denied or malformed.
         case errSecUserCanceled, errSecAuthFailed:
             return .denied
         default:

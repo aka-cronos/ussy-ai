@@ -26,15 +26,21 @@ public struct CursorSessionReader: SessionReader {
             return .session(Session(accessToken: token, accountID: Self.subject(of: token)))
         case .found, .missing:
             return .noSession
-        case .unreadable:
+        case .incompatible:
             return .unknownFormat
+        case .busy:
+            return .storeBusy
+        case .unavailable:
+            return .storeUnavailable
         }
     }
 
     private enum StoredToken {
         case found(String)
         case missing
-        case unreadable
+        case incompatible
+        case busy
+        case unavailable
     }
 
     private func storedToken() -> StoredToken {
@@ -46,26 +52,38 @@ public struct CursorSessionReader: SessionReader {
         address.scheme = "file"
         address.path = databaseFile.path(percentEncoded: false)
         address.queryItems = [URLQueryItem(name: "mode", value: "ro")]
-        guard let uri = address.string,
-              sqlite3_open_v2(uri, &database, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK
-        else { return .unreadable }
+        guard let uri = address.string else { return .unavailable }
+        let openStatus = sqlite3_open_v2(uri, &database, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
+        guard openStatus == SQLITE_OK else { return Self.failure(for: openStatus) }
         sqlite3_busy_timeout(database, 2_000)
 
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
-        guard sqlite3_prepare_v2(database, "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'", -1, &statement, nil) == SQLITE_OK
-        else { return .unreadable }
+        let prepareStatus = sqlite3_prepare_v2(database, "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'", -1, &statement, nil)
+        guard prepareStatus == SQLITE_OK else {
+            // A missing ItemTable means Cursor's storage no longer has the
+            // expected schema. Other failures may be temporary.
+            return prepareStatus == SQLITE_ERROR ? .incompatible : Self.failure(for: prepareStatus)
+        }
         switch sqlite3_step(statement) {
         case SQLITE_ROW:
             // The value may be stored as text or as a blob of text.
             guard let bytes = sqlite3_column_blob(statement, 0) else { return .found("") }
             let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0)))
-            guard let token = String(data: data, encoding: .utf8) else { return .unreadable }
+            guard let token = String(data: data, encoding: .utf8) else { return .incompatible }
             return .found(token.trimmingCharacters(in: .whitespacesAndNewlines))
         case SQLITE_DONE:
             return .missing
-        default:
-            return .unreadable
+        case let status:
+            return Self.failure(for: status)
+        }
+    }
+
+    private static func failure(for status: Int32) -> StoredToken {
+        switch status & 0xff {
+        case SQLITE_BUSY, SQLITE_LOCKED: .busy
+        case SQLITE_NOTADB, SQLITE_CORRUPT: .incompatible
+        default: .unavailable
         }
     }
 

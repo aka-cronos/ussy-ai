@@ -69,6 +69,16 @@ struct SessionStateTests {
         #expect(await transport.requests.isEmpty)
     }
 
+    @Test func anUnavailableSessionStoreIsNotCalledAnIncompatibleSession() async {
+        await sessionReader.answer(with: .storeUnavailable)
+
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.sessionStoreUnavailable))
+        #expect(await transport.requests.isEmpty)
+    }
+
     @Test(arguments: [401, 403])
     func afterARejectionTheCadenceAndWakingDoNotRetry(status: Int) async {
         await transport.answer(with: .status(status))
