@@ -1,0 +1,39 @@
+name: Bug
+description: Something in Uzzy does not work as expected.
+labels: [needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste real tokens, emails, account IDs or provider responses. Replace them with placeholders.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you saw instead. Screenshots of the panel help.
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      multiple: true
+      options:
+        - Claude
+        - Codex
+        - Cursor
+        - None / the app itself
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Uzzy commit
+      description: Output of `git rev-parse --short HEAD` in the checkout you built.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+    validations:
+      required: true

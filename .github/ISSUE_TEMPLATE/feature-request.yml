@@ -1,0 +1,21 @@
+name: Feature request
+description: Propose a change or a new capability.
+labels: [needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: Agree on the idea here before you open a pull request; pull requests without an agreed issue may be closed.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do and why Uzzy does not let you today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you would like Uzzy to do. Use the terms in CONTEXT.md where they apply.
+    validations:
+      required: true
