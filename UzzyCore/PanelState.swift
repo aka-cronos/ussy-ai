@@ -38,11 +38,14 @@ public enum CardContent: Sendable, Equatable {
     /// No valid reading yet.
     case loading
     case quotas([Quota])
+    /// The last valid reading of the same account, kept after a failed query.
+    /// Its quotas are stale and keep the time of their query.
+    case stale([Quota], failure: Failure)
     /// The card has no quotas to show, and this is why.
     case failed(Failure)
 }
 
-/// Why a card has no quotas to show.
+/// Why a card has no quotas to show, or only stale ones.
 public enum Failure: Sendable, Equatable {
     /// The official app has no session on this Mac.
     case noSession
@@ -75,12 +78,16 @@ public struct Quota: Sendable, Equatable {
     public let reset: Reset
     /// When the query that produced this value was made.
     public let readAt: Date
+    /// The value no longer confirms the current quota: a later query failed,
+    /// or the reset passed without a new reading.
+    public let isStale: Bool
 
-    public init(period: QuotaPeriod, value: QuotaValue, reset: Reset, readAt: Date) {
+    public init(period: QuotaPeriod, value: QuotaValue, reset: Reset, readAt: Date, isStale: Bool = false) {
         self.period = period
         self.value = value
         self.reset = reset
         self.readAt = readAt
+        self.isStale = isStale
     }
 }
 

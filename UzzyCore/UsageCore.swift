@@ -58,10 +58,10 @@ public final class UsageCore {
     /// the panel is a user action.
     public func panelOpened() {
         switch claude {
-        case .failed(.sessionAccessDenied):
+        case .failed(.sessionAccessDenied, _):
             // The user said no; only Actualizar asks again.
             break
-        case .failed(let failure) where failure.isRejection:
+        case .failed(let failure, _) where failure.isRejection:
             // Only a session that changed since the rejection is worth a query.
             queryClaude(.read(skipping: claudeSession))
         default:
@@ -139,7 +139,7 @@ public final class UsageCore {
             let reading = await claudeSessionReader.read()
             if let failure = Failure(reading) {
                 claudeSession = nil
-                return .failed(failure)
+                return .failed(failure, keeping: nil)
             }
             guard case .session(let read) = reading, read != skipped else { return nil }
             session = read
@@ -148,7 +148,7 @@ public final class UsageCore {
         let result = await transport.send(Claude.request(accessToken: session.accessToken))
         let failure: Failure
         switch Self.answer(to: result, at: clock.now()) {
-        case .quotas(let quotas): return .quotas(quotas)
+        case .quotas(let quotas): return .quotas(LastValidReading(quotas: quotas, accountID: session.accountID))
         case .failed(let why): failure = why
         }
         log.record(.queryFailed(.claude, failure))
@@ -159,7 +159,7 @@ public final class UsageCore {
             claudeSession = nil
             return nil
         }
-        return .failed(failure)
+        return .failed(failure, keeping: claude.lastValidReading(of: session.accountID))
     }
 
     /// The quotas in the provider's answer, or why there are none.
@@ -217,25 +217,51 @@ private extension Failure {
 /// What the core last learned from a provider.
 private enum ProviderReading {
     case loading
-    case quotas([QuotaReading])
-    case failed(Failure)
+    case quotas(LastValidReading)
+    /// `keeping` the last valid reading of the same account, now stale.
+    case failed(Failure, keeping: LastValidReading?)
 
     func isFresh(at now: Date) -> Bool {
-        guard case .quotas(let quotas) = self, let readAt = quotas.map(\.readAt).min() else { return false }
+        guard case .quotas(let reading) = self, let readAt = reading.quotas.map(\.readAt).min() else { return false }
         return now.timeIntervalSince(readAt) < UsageCore.refreshInterval
     }
 
     /// The provider rejected the session, or the user denied access to it.
     var waitsForTheUser: Bool {
-        guard case .failed(let failure) = self else { return false }
+        guard case .failed(let failure, _) = self else { return false }
         return failure.isRejection || failure == .sessionAccessDenied
+    }
+
+    /// The last valid reading, if it belongs to `accountID`. A reading whose
+    /// account cannot be verified belongs to no one.
+    func lastValidReading(of accountID: String?) -> LastValidReading? {
+        let last: LastValidReading?
+        switch self {
+        case .loading: last = nil
+        case .quotas(let reading): last = reading
+        case .failed(_, let kept): last = kept
+        }
+        guard let last, let accountID, last.accountID == accountID else { return nil }
+        return last
     }
 
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
         switch self {
-        case .loading: .loading
-        case .quotas(let quotas): .quotas(quotas.map { $0.quota(in: magnitude, at: now) })
-        case .failed(let failure): .failed(failure)
+        case .loading:
+            .loading
+        case .quotas(let reading):
+            .quotas(reading.quotas.map { $0.quota(in: magnitude, at: now) })
+        case .failed(let failure, let kept?):
+            .stale(kept.quotas.map { $0.quota(in: magnitude, at: now, stale: true) }, failure: failure)
+        case .failed(let failure, nil):
+            .failed(failure)
         }
     }
+}
+
+/// The quotas of a provider's last valid query, and the account they belong
+/// to; `nil` when it could not be verified.
+private struct LastValidReading {
+    let quotas: [QuotaReading]
+    let accountID: String?
 }

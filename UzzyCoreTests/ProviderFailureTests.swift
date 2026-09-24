@@ -10,6 +10,10 @@ struct ProviderFailureTests {
     let transport = ControlledTransport()
     let log = RecordingLog()
     let core: UsageCore
+    let refreshInterval: TimeInterval = 5 * 60
+    // 2026-09-23T17:00:00Z and 2026-09-25T09:00:00Z, from the sample response.
+    let fiveHourReset = Date(timeIntervalSince1970: 1_790_182_800)
+    let weeklyReset = Date(timeIntervalSince1970: 1_790_326_800)
 
     init() {
         core = UsageCore(claudeSessionReader: SampleSessionReader(), transport: transport, clock: clock, log: log)
@@ -32,6 +36,85 @@ struct ProviderFailureTests {
         await core.queriesFinished()
 
         #expect(claudeContent() == .failed(failure))
+    }
+
+    @Test(arguments: [
+        (HTTPResult.networkError, Failure.offline),
+        (.timeout, .timedOut),
+        (.status(500), .serverError(status: 500)),
+        (.response(HTTPResponse(status: 200, headers: [:], body: Data("<html></html>".utf8))), .incompatibleResponse),
+    ])
+    func withAPreviousReadingTheCardKeepsItAsStaleWithItsOriginalTime(result: HTTPResult, failure: Failure) async {
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: result)
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .stale([
+            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment, isStale: true),
+            Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: Samples.readingMoment, isStale: true),
+        ], failure: failure))
+    }
+
+    @Test func aNewValidReadingReplacesTheStaleOne() async {
+        core.panelOpened()
+        await core.queriesFinished()
+        await transport.answer(with: .networkError)
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+
+        await transport.answer(with: .claudeSample)
+        core.refresh()
+        await core.queriesFinished()
+
+        guard case .quotas(let quotas) = claudeContent() else {
+            Issue.record("Expected fresh quotas")
+            return
+        }
+        #expect(quotas.allSatisfy { !$0.isStale && $0.readAt == clock.now() })
+    }
+
+    @Test func aSessionFailureDoesNotKeepThePreviousReading() async {
+        let sessionReader = ControlledSessionReader()
+        let core = UsageCore(claudeSessionReader: sessionReader, transport: transport, clock: clock, log: log)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .noSession)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(core.state.cards.first?.content == .failed(.noSession))
+    }
+
+    @Test func aReadingOfAnotherAccountIsNotKeptAfterAFailure() async {
+        let sessionReader = ControlledSessionReader()
+        let core = UsageCore(claudeSessionReader: sessionReader, transport: transport, clock: clock, log: log)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .session(Session(accessToken: "other-token", accountID: "other-account")))
+        await transport.answer(with: .networkError)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(core.state.cards.first?.content == .failed(.offline))
+    }
+
+    @Test func aReadingIsNotKeptWhenTheAccountCannotBeVerified() async {
+        let sessionReader = ControlledSessionReader()
+        let core = UsageCore(claudeSessionReader: sessionReader, transport: transport, clock: clock, log: log)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .session(Session(accessToken: "sample-token", accountID: nil)))
+        await transport.answer(with: .networkError)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(core.state.cards.first?.content == .failed(.offline))
     }
 
     @Test(arguments: [

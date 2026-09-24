@@ -80,6 +80,12 @@ private struct CardView: View {
                 ForEach(quotas, id: \.period) { quota in
                     QuotaView(quota: quota, magnitude: magnitude, now: now)
                 }
+            case .stale(let quotas, let failure):
+                // Why the figures below could not be refreshed.
+                FailureMessage(failure: failure, provider: card.provider)
+                ForEach(quotas, id: \.period) { quota in
+                    QuotaView(quota: quota, magnitude: magnitude, now: now)
+                }
             }
         }
         .padding(14)
@@ -102,13 +108,18 @@ private struct QuotaView: View {
                 // always show the same magnitude.
                 HStack(alignment: .firstTextBaseline) {
                     Text(quota.period.name)
+                    if quota.isStale {
+                        Text("Desactualizado").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                    }
                     Spacer()
                     Text(Format.percent(percent))
                         .font(.title3.weight(.semibold))
                         .monospacedDigit()
+                        .foregroundStyle(quota.isStale ? .secondary : .primary)
                     Text(magnitude.name).font(.caption).foregroundStyle(.secondary)
                 }
                 Bar(fraction: percent / 100)
+                    .opacity(quota.isStale ? 0.5 : 1)
                 Group {
                     if calculated {
                         Text("Calculado: 100 − usado")
