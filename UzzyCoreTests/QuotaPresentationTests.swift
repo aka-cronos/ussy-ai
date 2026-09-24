@@ -151,14 +151,23 @@ struct QuotaPresentationTests {
         ))
     }
 
-    @Test func aResetThatPassesWithoutANewReadingIsPendingConfirmation() async {
+    @Test func aResetThatPassesWithoutANewReadingIsPendingConfirmationAndItsFigureStale() async {
         let clock = ManualClock(readingMoment)
         let core = await openedPanel(clock: clock)
+        // No query runs while the panel is closed, so no new reading arrives.
+        core.panelClosed()
 
         clock.move(to: fiveHourReset)
 
+        // The figure is kept as it was, never set to zero.
         #expect(claudeQuotas(core) == [
-            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .pendingConfirmation, readAt: readingMoment),
+            Quota(
+                period: .fiveHours,
+                value: .percent(35, calculated: false),
+                reset: .pendingConfirmation,
+                readAt: readingMoment,
+                isStale: true
+            ),
             Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
         ])
     }

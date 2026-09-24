@@ -27,15 +27,26 @@ public final class UsageCore {
     /// Identifies the only scheduled query that may still run. `nil` while
     /// the panel is closed.
     @ObservationIgnored private var cadence: UUID?
+    @ObservationIgnored private var claudeWait = RetryWait()
+    /// Identifies the only scheduled retry that may still run. `nil` while
+    /// the panel is closed.
+    @ObservationIgnored private var claudeRetryTimer: UUID?
 
     private let claudeSessionReader: any SessionReader
     private let transport: any HTTPTransport
     private let clock: any WallClock
+    private let log: any EventLog
 
-    public init(claudeSessionReader: any SessionReader, transport: any HTTPTransport, clock: any WallClock) {
+    public init(
+        claudeSessionReader: any SessionReader,
+        transport: any HTTPTransport,
+        clock: any WallClock,
+        log: any EventLog = SystemLog()
+    ) {
         self.claudeSessionReader = claudeSessionReader
         self.transport = transport
         self.clock = clock
+        self.log = log
     }
 
     public func now() -> Date {
@@ -51,10 +62,10 @@ public final class UsageCore {
     /// the panel is a user action.
     public func panelOpened() {
         switch claude {
-        case .failed(.sessionAccessDenied):
+        case .failed(.sessionAccessDenied, _):
             // The user said no; only Actualizar asks again.
             break
-        case .failed(let failure) where failure.isRejection:
+        case .failed(let failure, _) where failure.isRejection:
             // Only a session that changed since the rejection is worth a query.
             queryClaude(.read(skipping: claudeSession))
         default:
@@ -63,6 +74,7 @@ public final class UsageCore {
             }
         }
         scheduleNextQuery()
+        scheduleClaudeRetry()
     }
 
     /// The Actualizar button: reads the session and queries even when the
@@ -82,6 +94,7 @@ public final class UsageCore {
     /// Stops scheduling queries. A query in flight still finishes.
     public func panelClosed() {
         cadence = nil
+        claudeRetryTimer = nil
     }
 
     /// Returns once no query is in flight.
@@ -105,19 +118,45 @@ public final class UsageCore {
     /// provider rejects a session, or the user denies access to it, only the
     /// user asks again.
     private func queryClaudeOnItsOwn() {
-        guard !claude.waitsForTheUser, let claudeSession else { return }
+        guard !claude.waitsForTheUser, let claudeSession, claudeWait.allowsAutomaticQuery(at: clock.now())
+        else { return }
         queryClaude(.reuse(claudeSession))
     }
 
     /// Never two queries of the same provider at once: a repeated request
     /// joins the one in flight.
     private func queryClaude(_ source: SessionSource) {
-        guard claudeQuery == nil else { return }
+        guard claudeQuery == nil, claudeWait.allowsAnyQuery(at: clock.now()) else { return }
         claudeQuery = Task {
             if let reading = await readClaude(source) {
                 claude = reading
+                planClaudeRetry(after: reading)
             }
             claudeQuery = nil
+        }
+    }
+
+    /// Failures that may pass shortly are retried on their own, after a
+    /// wait. Anything else ends the wait.
+    private func planClaudeRetry(after reading: ProviderReading) {
+        guard case .failed(let failure, _) = reading, failure.isWorthRetrying else {
+            claudeWait = RetryWait()
+            return
+        }
+        claudeWait.record(failure, at: clock.now())
+        scheduleClaudeRetry()
+    }
+
+    /// Only while the panel is open. Replaces any retry scheduled before.
+    private func scheduleClaudeRetry() {
+        guard cadence != nil, let retryAt = claudeWait.retryAt else { return }
+        let timer = UUID()
+        claudeRetryTimer = timer
+        clock.schedule(at: retryAt) { [weak self] in
+            guard let self, claudeRetryTimer == timer else { return }
+            // The wait is over even if a real clock wakes a moment early.
+            claudeWait.end()
+            queryClaudeOnItsOwn()
         }
     }
 
@@ -132,29 +171,95 @@ public final class UsageCore {
             let reading = await claudeSessionReader.read()
             if let failure = Failure(reading) {
                 claudeSession = nil
-                return .failed(failure)
+                return .failed(failure, keeping: nil)
             }
             guard case .session(let read) = reading, read != skipped else { return nil }
             session = read
             claudeSession = read
         }
-        guard case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken))
-        else { return .failed(.queryFailed) }
-        if let rejection = Failure(rejectionStatus: response.status) {
-            guard case .read = source else {
-                // The official app may have renewed the token since it was
-                // read, so the session is not called expired. Automatic
-                // queries stop; the next user action reads it again.
-                claudeSession = nil
-                return nil
-            }
-            return .failed(rejection)
+        let result = await transport.send(Claude.request(accessToken: session.accessToken))
+        let failure: Failure
+        switch Self.answer(to: result, at: clock.now()) {
+        case .quotas(let quotas): return .quotas(LastValidReading(quotas: quotas, accountID: session.accountID))
+        case .failed(let why): failure = why
         }
-        guard response.status == 200,
-              let quotas = Claude.quotas(from: response.body, readAt: clock.now())
-        else { return .failed(.queryFailed) }
-        return .quotas(quotas)
+        log.record(.queryFailed(.claude, failure))
+        if failure.isRejection, case .reuse = source {
+            // The official app may have renewed the token since it was
+            // read, so the session is not called expired. Automatic
+            // queries stop; the next user action reads it again.
+            claudeSession = nil
+            return nil
+        }
+        return .failed(failure, keeping: claude.lastValidReading(of: session.accountID))
     }
+
+    /// The quotas in the provider's answer, or why there are none.
+    private static func answer(to result: HTTPResult, at moment: Date) -> Answer {
+        let response: HTTPResponse
+        switch result {
+        case .response(let received): response = received
+        case .networkError: return .failed(.offline)
+        case .timeout: return .failed(.timedOut)
+        }
+        switch response.status {
+        case 200:
+            guard let quotas = Claude.quotas(from: response.body, readAt: moment) else { return .failed(.incompatibleResponse) }
+            return .quotas(quotas)
+        case 401: return .failed(.sessionExpired)
+        case 403: return .failed(.accessRefused)
+        case 429: return .failed(.rateLimited(until: retryAfter(response.headers, from: moment)))
+        case 500...599: return .failed(.serverError(status: response.status))
+        // Anything else means the route or its format changed.
+        default: return .failed(.incompatibleResponse)
+        }
+    }
+}
+
+/// How long a provider's queries wait after failures that may pass shortly:
+/// the network, the server, or the provider asking to wait.
+private struct RetryWait {
+    /// The first wait doubles with each consecutive failure, up to the longest.
+    static let first: TimeInterval = 30
+    static let longest: TimeInterval = 15 * 60
+
+    private var failures = 0
+    /// Queries no user action asked for wait until then.
+    private(set) var retryAt: Date?
+    /// No query at all is made before then, not even on Actualizar: the
+    /// provider asked to wait (429 with `Retry-After`).
+    private var blockedUntil: Date?
+
+    mutating func record(_ failure: Failure, at now: Date) {
+        failures += 1
+        if case .rateLimited(let until?) = failure {
+            blockedUntil = until
+            retryAt = until
+        } else {
+            blockedUntil = nil
+            retryAt = now.addingTimeInterval(min(Self.first * pow(2, Double(failures - 1)), Self.longest))
+        }
+    }
+
+    /// Keeps counting failures, so the next wait is still longer.
+    mutating func end() {
+        retryAt = nil
+        blockedUntil = nil
+    }
+
+    func allowsAutomaticQuery(at now: Date) -> Bool {
+        retryAt.map { now >= $0 } ?? true
+    }
+
+    func allowsAnyQuery(at now: Date) -> Bool {
+        blockedUntil.map { now >= $0 } ?? true
+    }
+}
+
+/// What a provider's answer to a query says.
+private enum Answer {
+    case quotas([QuotaReading])
+    case failed(Failure)
 }
 
 /// Where a query takes the provider's session from.
@@ -177,13 +282,12 @@ private extension Failure {
         }
     }
 
-    /// The provider rejected the session (401) or the query (403); `nil`
-    /// for any other status.
-    init?(rejectionStatus status: Int) {
-        switch status {
-        case 401: self = .sessionExpired
-        case 403: self = .accessRefused
-        default: return nil
+    /// The network or the provider's server failed, or the provider asked to
+    /// wait (429): it may work shortly.
+    var isWorthRetrying: Bool {
+        switch self {
+        case .offline, .timedOut, .serverError, .rateLimited: true
+        default: false
         }
     }
 
@@ -195,25 +299,67 @@ private extension Failure {
 /// What the core last learned from a provider.
 private enum ProviderReading {
     case loading
-    case quotas([QuotaReading])
-    case failed(Failure)
+    case quotas(LastValidReading)
+    /// `keeping` the last valid reading of the same account, now stale.
+    case failed(Failure, keeping: LastValidReading?)
 
     func isFresh(at now: Date) -> Bool {
-        guard case .quotas(let quotas) = self, let readAt = quotas.map(\.readAt).min() else { return false }
+        guard case .quotas(let reading) = self, let readAt = reading.quotas.map(\.readAt).min() else { return false }
         return now.timeIntervalSince(readAt) < UsageCore.refreshInterval
     }
 
     /// The provider rejected the session, or the user denied access to it.
     var waitsForTheUser: Bool {
-        guard case .failed(let failure) = self else { return false }
+        guard case .failed(let failure, _) = self else { return false }
         return failure.isRejection || failure == .sessionAccessDenied
+    }
+
+    /// The last valid reading, if it belongs to `accountID`. A reading whose
+    /// account cannot be verified belongs to no one.
+    func lastValidReading(of accountID: String?) -> LastValidReading? {
+        let last: LastValidReading?
+        switch self {
+        case .loading: last = nil
+        case .quotas(let reading): last = reading
+        case .failed(_, let kept): last = kept
+        }
+        guard let last, let accountID, last.accountID == accountID else { return nil }
+        return last
     }
 
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
         switch self {
-        case .loading: .loading
-        case .quotas(let quotas): .quotas(quotas.map { $0.quota(in: magnitude, at: now) })
-        case .failed(let failure): .failed(failure)
+        case .loading:
+            .loading
+        case .quotas(let reading):
+            .quotas(reading.quotas.map { $0.quota(in: magnitude, at: now) })
+        case .failed(let failure, let kept?):
+            .stale(kept.quotas.map { $0.quota(in: magnitude, at: now, stale: true) }, failure: failure)
+        case .failed(let failure, nil):
+            .failed(failure)
         }
     }
+}
+
+/// The quotas of a provider's last valid query, and the account they belong
+/// to; `nil` when it could not be verified.
+private struct LastValidReading {
+    let quotas: [QuotaReading]
+    let accountID: String?
+}
+
+/// When a `Retry-After` header, in seconds or as an HTTP date, says to query
+/// again; `nil` without a valid one.
+private func retryAfter(_ headers: [String: String], from moment: Date) -> Date? {
+    guard let value = headers.first(where: { $0.key.caseInsensitiveCompare("Retry-After") == .orderedSame })?.value
+        .trimmingCharacters(in: .whitespaces)
+    else { return nil }
+    if let seconds = Int(value), seconds >= 0 {
+        return moment.addingTimeInterval(TimeInterval(seconds))
+    }
+    let format = DateFormatter()
+    format.locale = Locale(identifier: "en_US_POSIX")
+    format.timeZone = TimeZone(identifier: "GMT")
+    format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+    return format.date(from: value)
 }
