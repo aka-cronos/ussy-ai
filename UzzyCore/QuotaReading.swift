@@ -18,8 +18,17 @@ struct QuotaReading: Sendable, Equatable {
     static let percentAgreement = 1.0
     static let resetAgreement: TimeInterval = 60
 
-    func quota(in magnitude: QuotaMagnitude, at now: Date) -> Quota {
-        Quota(period: period, value: value(in: magnitude), reset: reset(at: now), readAt: readAt)
+    /// `stale` when a later query failed. A reset that passed without a new
+    /// reading makes the figure stale too.
+    func quota(in magnitude: QuotaMagnitude, at now: Date, stale: Bool = false) -> Quota {
+        let reset = reset(at: now)
+        return Quota(
+            period: period,
+            value: value(in: magnitude),
+            reset: reset,
+            readAt: readAt,
+            isStale: stale || reset == .pendingConfirmation
+        )
     }
 
     private func reset(at now: Date) -> Reset {

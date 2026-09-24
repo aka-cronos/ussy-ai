@@ -75,8 +75,14 @@ private struct CardView: View {
             case .loading:
                 Message(title: "Consultando cuotas…", detail: "Todavía no hay un dato válido.")
             case .failed(let failure):
-                FailureMessage(failure: failure, provider: card.provider)
+                FailureMessage(failure: failure, provider: card.provider, now: now)
             case .quotas(let quotas):
+                ForEach(quotas, id: \.period) { quota in
+                    QuotaView(quota: quota, magnitude: magnitude, now: now)
+                }
+            case .stale(let quotas, let failure):
+                // Why the figures below could not be refreshed.
+                FailureMessage(failure: failure, provider: card.provider, now: now)
                 ForEach(quotas, id: \.period) { quota in
                     QuotaView(quota: quota, magnitude: magnitude, now: now)
                 }
@@ -102,13 +108,18 @@ private struct QuotaView: View {
                 // always show the same magnitude.
                 HStack(alignment: .firstTextBaseline) {
                     Text(quota.period.name)
+                    if quota.isStale {
+                        Text("Desactualizado").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                    }
                     Spacer()
                     Text(Format.percent(percent))
                         .font(.title3.weight(.semibold))
                         .monospacedDigit()
+                        .foregroundStyle(quota.isStale ? .secondary : .primary)
                     Text(magnitude.name).font(.caption).foregroundStyle(.secondary)
                 }
                 Bar(fraction: percent / 100)
+                    .opacity(quota.isStale ? 0.5 : 1)
                 Group {
                     if calculated {
                         Text("Calculado: 100 − usado")
@@ -176,6 +187,7 @@ private struct Message: View {
 private struct FailureMessage: View {
     let failure: Failure
     let provider: Provider
+    let now: Date
 
     var body: some View {
         switch failure {
@@ -198,8 +210,20 @@ private struct FailureMessage: View {
                 title: "Acceso rechazado",
                 detail: "\(provider.name) rechazó la consulta. Puede ser una restricción de la cuenta; revísala en \(provider.officialApp) y pulsa Actualizar."
             )
-        case .queryFailed:
-            Message(title: "No se pudo consultar", detail: "No hay un dato válido que mostrar.")
+        case .offline:
+            Message(title: "Sin conexión", detail: "No se pudo conectar con \(provider.name). Pulsa Actualizar para reintentar.")
+        case .timedOut:
+            Message(title: "Tiempo agotado", detail: "\(provider.name) no respondió a tiempo. Pulsa Actualizar para reintentar.")
+        case .serverError(let status):
+            Message(title: "Error del servidor", detail: "\(provider.name) respondió con un error (\(status)). Pulsa Actualizar para reintentar.")
+        case .rateLimited(let until):
+            let when = until.map { "a partir de: \(Format.dayAndTime($0, now: now))" } ?? "en breve"
+            Message(title: "Demasiadas consultas", detail: "\(provider.name) pidió esperar. Se volverá a consultar \(when).")
+        case .incompatibleResponse:
+            Message(
+                title: "Respuesta incompatible",
+                detail: "\(provider.name) respondió en un formato que \(Format.appName) no reconoce. Puede que haya cambiado su servicio."
+            )
         }
     }
 }

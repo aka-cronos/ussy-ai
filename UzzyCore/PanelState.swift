@@ -38,11 +38,14 @@ public enum CardContent: Sendable, Equatable {
     /// No valid reading yet.
     case loading
     case quotas([Quota])
+    /// The last valid reading of the same account, kept after a failed query.
+    /// Its quotas are stale and keep the time of their query.
+    case stale([Quota], failure: Failure)
     /// The card has no quotas to show, and this is why.
     case failed(Failure)
 }
 
-/// Why a card has no quotas to show.
+/// Why a card has no quotas to show, or only stale ones.
 public enum Failure: Sendable, Equatable {
     /// The official app has no session on this Mac.
     case noSession
@@ -57,9 +60,18 @@ public enum Failure: Sendable, Equatable {
     /// The provider refused the query (403). It may be a restriction other
     /// than the session, so it is not taken as an expired session.
     case accessRefused
-    /// The query failed for any other reason (network, server or an
-    /// unreadable response).
-    case queryFailed
+    /// The provider could not be reached: the network is down.
+    case offline
+    /// The provider did not answer within the time limit.
+    case timedOut
+    /// The provider failed to answer the query (5xx).
+    case serverError(status: Int)
+    /// The provider received too many queries (429). No query is made
+    /// before `until`, the time it asked to wait for, if it said.
+    case rateLimited(until: Date?)
+    /// The provider answered with something the app does not understand, e.g.
+    /// because it changed its format. No alternative route is tried.
+    case incompatibleResponse
 }
 
 /// A subscription quota, independent of the provider's other quotas.
@@ -69,12 +81,16 @@ public struct Quota: Sendable, Equatable {
     public let reset: Reset
     /// When the query that produced this value was made.
     public let readAt: Date
+    /// The value no longer confirms the current quota: a later query failed,
+    /// or the reset passed without a new reading.
+    public let isStale: Bool
 
-    public init(period: QuotaPeriod, value: QuotaValue, reset: Reset, readAt: Date) {
+    public init(period: QuotaPeriod, value: QuotaValue, reset: Reset, readAt: Date, isStale: Bool = false) {
         self.period = period
         self.value = value
         self.reset = reset
         self.readAt = readAt
+        self.isStale = isStale
     }
 }
 

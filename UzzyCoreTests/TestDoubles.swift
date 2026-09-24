@@ -119,3 +119,16 @@ extension HTTPResult {
         .response(HTTPResponse(status: status, headers: [:], body: Data()))
     }
 }
+
+/// Keeps the events the core logs.
+final class RecordingLog: EventLog {
+    private let recorded = Mutex<[LogEvent]>([])
+
+    var events: [LogEvent] {
+        recorded.withLock { $0 }
+    }
+
+    func record(_ event: LogEvent) {
+        recorded.withLock { $0.append(event) }
+    }
+}
