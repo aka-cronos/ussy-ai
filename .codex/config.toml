@@ -1,0 +1,3 @@
+[mcp_servers.xcode]
+command = "/usr/bin/xcrun"
+args = ["mcpbridge"]
