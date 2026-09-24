@@ -20,7 +20,7 @@ public final class UsageCore {
     /// panel does not query a provider whose reading is younger than this.
     nonisolated static let refreshInterval: TimeInterval = 5 * 60
 
-    private var magnitude = QuotaMagnitude.used
+    private var magnitude: QuotaMagnitude
     /// One per card, in the panel's order. Each is queried on its own.
     private let providers: [ProviderRefresh]
     /// Identifies the only scheduled query that may still run. `nil` while
@@ -35,9 +35,11 @@ public final class UsageCore {
         cursorSessionReader: any SessionReader,
         transport: any HTTPTransport,
         clock: any WallClock,
-        log: any EventLog = SystemLog()
+        log: any EventLog = SystemLog(),
+        initialMagnitude: QuotaMagnitude = .used
     ) {
         self.clock = clock
+        magnitude = initialMagnitude
         providers = [
             ProviderRefresh(Claude.self, sessionReader: claudeSessionReader, transport: transport, clock: clock, log: log),
             ProviderRefresh(Codex.self, sessionReader: codexSessionReader, transport: transport, clock: clock, log: log),

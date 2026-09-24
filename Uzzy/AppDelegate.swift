@@ -12,8 +12,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         codexSessionReader: CodexCLISessionReader(),
         cursorSessionReader: CursorSessionReader(),
         transport: URLSessionTransport(),
-        clock: SystemClock()
+        clock: SystemClock(),
+        initialMagnitude: QuotaMagnitude(
+            rawValue: UserDefaults.standard.string(forKey: "displayMagnitude") ?? ""
+        ) ?? .used
     )
+    private var settingsWindow: NSWindow?
     #if DEBUG
     private lazy var scenarios = ScenarioSwitch(realCore: realCore)
     #endif
@@ -36,12 +40,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
-        let content = NSHostingController(rootView: ScenarioPanel(scenarios: scenarios) { [weak self] scenario in
+        let content = NSHostingController(rootView: ScenarioPanel(scenarios: scenarios, openSettings: { [weak self] in
+            self?.showSettings()
+        }) { [weak self] scenario in
             guard let self else { return }
             Task { await self.scenarios.show(scenario, panelIsOpen: self.popover.isShown) }
         })
         #else
-        let content = NSHostingController(rootView: PanelView(core: realCore))
+        let content = NSHostingController(rootView: PanelView(core: realCore, openSettings: { [weak self] in
+            self?.showSettings()
+        }))
         #endif
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
@@ -111,6 +119,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 NSApp.terminate(nil)
                 return nil
             }
+            if event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
+               event.charactersIgnoringModifiers == "," {
+                self?.showSettings()
+                return nil
+            }
             return event
         }) {
             eventMonitors.append(keyDown)
@@ -136,6 +149,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.animates = false
         popover.performClose(nil)
         popover.animates = true
+    }
+
+    private func showSettings() {
+        closePanel()
+        if settingsWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 240),
+                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.title = "Ajustes"
+            window.contentViewController = NSHostingController(rootView: SettingsView())
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        NSApp.activate()
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     func popoverDidClose(_ notification: Notification) {

@@ -3,6 +3,8 @@ import UzzyCore
 
 struct PanelView: View {
     let core: UsageCore
+    let openSettings: () -> Void
+    @AppStorage("displayMagnitude") private var defaultMagnitude: QuotaMagnitude = .used
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -12,7 +14,10 @@ struct PanelView: View {
                     Text("Cuotas de suscripción").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Picker("Mostrar", selection: Binding(get: { core.state.magnitude }, set: core.show)) {
+                Picker("Mostrar", selection: Binding(get: { core.state.magnitude }, set: {
+                    core.show($0)
+                    defaultMagnitude = $0
+                })) {
                     Text("Usado").tag(QuotaMagnitude.used)
                     Text("Restante").tag(QuotaMagnitude.remaining)
                 }
@@ -49,6 +54,8 @@ struct PanelView: View {
                     .opacity(core.state.isQuerying ? 1 : 0)
                     .accessibilityHidden(true)
                 Spacer()
+                Button("Ajustes", action: openSettings)
+                    .help("Abrir ajustes (⌘,)")
                 // Quotas live only in memory, so quitting has nothing to save.
                 Button("Salir") { NSApp.terminate(nil) }
                     .accessibilityLabel(Format.quitApp)
@@ -59,6 +66,8 @@ struct PanelView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 360)
+        .onAppear { core.show(defaultMagnitude) }
+        .onChange(of: defaultMagnitude) { _, magnitude in core.show(magnitude) }
     }
 }
 
