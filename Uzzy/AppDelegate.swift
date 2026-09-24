@@ -7,13 +7,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var eventMonitors: [Any] = []
-    private let core = UsageCore(
+    private let realCore = UsageCore(
         claudeSessionReader: ClaudeCodeSessionReader(),
         codexSessionReader: CodexCLISessionReader(),
         cursorSessionReader: CursorSessionReader(),
         transport: URLSessionTransport(),
         clock: SystemClock()
     )
+    #if DEBUG
+    private lazy var scenarios = ScenarioSwitch(realCore: realCore)
+    #endif
+
+    /// The core the panel shows.
+    private var core: UsageCore {
+        #if DEBUG
+        scenarios.core
+        #else
+        realCore
+        #endif
+    }
 
     static func main() {
         let app = NSApplication.shared
@@ -23,7 +35,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let content = NSHostingController(rootView: PanelView(core: core))
+        #if DEBUG
+        let content = NSHostingController(rootView: ScenarioPanel(scenarios: scenarios) { [weak self] scenario in
+            guard let self else { return }
+            Task { await self.scenarios.show(scenario, panelIsOpen: self.popover.isShown) }
+        })
+        #else
+        let content = NSHostingController(rootView: PanelView(core: realCore))
+        #endif
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         // The app closes the panel itself: `.transient` misses clicks in other
@@ -40,6 +59,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemDidWake), name: NSWorkspace.didWakeNotification, object: nil
         )
+
+        #if DEBUG
+        // `-scenario <id>` opens the panel on that scenario, e.g. `-scenario stale`.
+        // The icon waits for it, so the real accounts are never read.
+        if let id = UserDefaults.standard.string(forKey: "scenario"),
+           let scenario = Scenario.all.first(where: { $0.id == id }) {
+            item.button?.isEnabled = false
+            Task {
+                await scenarios.show(scenario, panelIsOpen: false)
+                item.button?.isEnabled = true
+                if !popover.isShown {
+                    openPanel()
+                }
+            }
+        }
+        #endif
     }
 
     @objc private func systemDidWake() {

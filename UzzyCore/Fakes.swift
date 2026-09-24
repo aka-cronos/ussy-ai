@@ -1,10 +1,66 @@
 import Foundation
 import Synchronization
-import UzzyCore
+
+// Fakes of the usage core's dependencies, shared by the tests and the debug
+// scenarios. They never touch a real session or the network, and they are
+// never in a Release build.
+#if DEBUG
+
+public struct SampleSessionReader: SessionReader {
+    public init() {}
+
+    public func read() async -> SessionReading {
+        .session(Samples.session)
+    }
+}
+
+/// Always answers each provider with the same response, and records the
+/// requests it receives.
+public actor SampleTransport: HTTPTransport {
+    public private(set) var requests: [URLRequest] = []
+    private let claudeResponse: Data
+    private let codexResponse: Data
+    private let cursorResponse: Data
+
+    public init(
+        claudeResponse: Data = Samples.claudeUsageResponse,
+        codexResponse: Data = Samples.codexUsageResponse,
+        cursorResponse: Data = Samples.cursorUsageResponse
+    ) {
+        self.claudeResponse = claudeResponse
+        self.codexResponse = codexResponse
+        self.cursorResponse = cursorResponse
+    }
+
+    public func send(_ request: URLRequest) async -> HTTPResult {
+        requests.append(request)
+        let body = switch request.url?.host {
+        case "chatgpt.com": codexResponse
+        case "api2.cursor.sh": cursorResponse
+        default: claudeResponse
+        }
+        return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: body))
+    }
+}
+
+public struct FixedClock: WallClock {
+    private let moment: Date
+
+    public init(_ moment: Date) {
+        self.moment = moment
+    }
+
+    public func now() -> Date {
+        moment
+    }
+
+    /// The clock never moves, so scheduled work never runs.
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {}
+}
 
 /// A clock the test moves by hand. Moving it runs, in order, the work
 /// scheduled up to the new moment.
-final class ManualClock: WallClock {
+public final class ManualClock: WallClock {
     private struct Scheduled {
         let deadline: Date
         let action: @MainActor @Sendable () -> Void
@@ -12,20 +68,20 @@ final class ManualClock: WallClock {
 
     private let state: Mutex<(moment: Date, scheduled: [Scheduled])>
 
-    init(_ moment: Date) {
+    public init(_ moment: Date) {
         state = Mutex((moment, []))
     }
 
-    func now() -> Date {
+    public func now() -> Date {
         state.withLock { $0.moment }
     }
 
-    func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {
         state.withLock { $0.scheduled.append(Scheduled(deadline: deadline, action: action)) }
     }
 
     @MainActor
-    func move(to moment: Date) {
+    public func move(to moment: Date) {
         while let next = nextDue(by: moment) {
             next.action()
         }
@@ -33,7 +89,7 @@ final class ManualClock: WallClock {
     }
 
     @MainActor
-    func advance(by interval: TimeInterval) {
+    public func advance(by interval: TimeInterval) {
         move(to: now().addingTimeInterval(interval))
     }
 
@@ -53,23 +109,27 @@ final class ManualClock: WallClock {
 
 /// Returns the sample session, or `reading` when set, and counts the reads.
 /// Reading a real session can show the Keychain prompt.
-actor ControlledSessionReader: SessionReader {
-    private(set) var reads = 0
+public actor ControlledSessionReader: SessionReader {
+    public private(set) var reads = 0
     private var reading = SessionReading.session(Samples.session)
 
-    func read() async -> SessionReading {
+    public init() {}
+
+    public func read() async -> SessionReading {
         reads += 1
         return reading
     }
 
-    func answer(with reading: SessionReading) {
+    public func answer(with reading: SessionReading) {
         self.reading = reading
     }
 }
 
 /// A provider signed out of its official app: the panel never queries it.
-struct NoSessionReader: SessionReader {
-    func read() async -> SessionReading {
+public struct NoSessionReader: SessionReader {
+    public init() {}
+
+    public func read() async -> SessionReading {
         .noSession
     }
 }
@@ -77,14 +137,16 @@ struct NoSessionReader: SessionReader {
 /// Answers each provider's requests with its sample response, or with the
 /// result set for it. While a provider is held, its requests wait until the
 /// test releases them.
-actor ControlledTransport: HTTPTransport {
-    private(set) var requests: [URLRequest] = []
+public actor ControlledTransport: HTTPTransport {
+    public private(set) var requests: [URLRequest] = []
     private var results: [Provider: HTTPResult] = [.claude: .claudeSample, .codex: .codexSample, .cursor: .cursorSample]
     private var held: Set<Provider> = []
     private var heldRequests: [CheckedContinuation<Void, Never>] = []
     private var requestWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
-    func send(_ request: URLRequest) async -> HTTPResult {
+    public init() {}
+
+    public func send(_ request: URLRequest) async -> HTTPResult {
         requests.append(request)
         let arrived = requestWaiters.filter { $0.count <= requests.count }
         requestWaiters.removeAll { $0.count <= requests.count }
@@ -97,30 +159,30 @@ actor ControlledTransport: HTTPTransport {
     }
 
     /// Answers the requests of `provider`, or of every provider, with `result`.
-    func answer(with result: HTTPResult, for provider: Provider? = nil) {
+    public func answer(with result: HTTPResult, for provider: Provider? = nil) {
         for each in provider.map({ [$0] }) ?? Provider.allCases {
             results[each] = result
         }
     }
 
     /// Holds the requests of `provider`, or of every provider.
-    func hold(_ provider: Provider? = nil) {
+    public func hold(_ provider: Provider? = nil) {
         held.formUnion(provider.map { [$0] } ?? Provider.allCases)
     }
 
-    func release() {
+    public func release() {
         held.removeAll()
         heldRequests.forEach { $0.resume() }
         heldRequests.removeAll()
     }
 
     /// The requests sent to `provider`.
-    func requests(to provider: Provider) -> [URLRequest] {
+    public func requests(to provider: Provider) -> [URLRequest] {
         requests.filter { Provider(of: $0) == provider }
     }
 
     /// Returns once `count` requests have arrived.
-    func waitForRequests(_ count: Int) async {
+    public func waitForRequests(_ count: Int) async {
         guard requests.count < count else { return }
         await withCheckedContinuation { requestWaiters.append((count, $0)) }
     }
@@ -128,7 +190,7 @@ actor ControlledTransport: HTTPTransport {
 
 extension Provider {
     /// The provider a request is sent to, by its host.
-    init?(of request: URLRequest) {
+    public init?(of request: URLRequest) {
         switch request.url?.host {
         case "api.anthropic.com": self = .claude
         case "chatgpt.com": self = .codex
@@ -140,47 +202,51 @@ extension Provider {
 
 extension HTTPResult {
     /// The sample Claude response, answered with a 200.
-    static let claudeSample = HTTPResult.response(
+    public static let claudeSample = HTTPResult.response(
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.claudeUsageResponse)
     )
 
     /// The sample Codex response, answered with a 200.
-    static let codexSample = HTTPResult.response(
+    public static let codexSample = HTTPResult.response(
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.codexUsageResponse)
     )
 
     /// The sample Cursor response, answered with a 200.
-    static let cursorSample = HTTPResult.response(
+    public static let cursorSample = HTTPResult.response(
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.cursorUsageResponse)
     )
 
-    /// A Cursor response, answered with a 200, with the given body.
-    static func cursor(_ body: String) -> HTTPResult {
+    /// A response of any provider, answered with a 200, with the given body.
+    public static func json(_ body: String) -> HTTPResult {
         .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
     }
 
     /// A Codex response, answered with a 200, with the given `rate_limit`
     /// and `additional_rate_limits` JSON.
-    static func codex(rateLimit: String, additional: String = "null") -> HTTPResult {
+    public static func codex(rateLimit: String, additional: String = "null") -> HTTPResult {
         let body = #"{"plan_type": "plus", "rate_limit": \#(rateLimit), "additional_rate_limits": \#(additional)}"#
         return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
     }
 
     /// An empty response with `status`.
-    static func status(_ status: Int) -> HTTPResult {
+    public static func status(_ status: Int) -> HTTPResult {
         .response(HTTPResponse(status: status, headers: [:], body: Data()))
     }
 }
 
 /// Keeps the events the core logs.
-final class RecordingLog: EventLog {
+public final class RecordingLog: EventLog {
     private let recorded = Mutex<[LogEvent]>([])
 
-    var events: [LogEvent] {
+    public init() {}
+
+    public var events: [LogEvent] {
         recorded.withLock { $0 }
     }
 
-    func record(_ event: LogEvent) {
+    public func record(_ event: LogEvent) {
         recorded.withLock { $0.append(event) }
     }
 }
+
+#endif

@@ -79,7 +79,7 @@ struct CursorPanelTests {
 
     /// A missing bag is never taken as zero, and the other one still shows.
     @Test func aBagWithoutUsageIsUnavailable() async {
-        await transport.answer(with: .cursor("""
+        await transport.answer(with: .json("""
             {"billingCycleEnd": "1791590400000", "planUsage": {"apiPercentUsed": 42.75, "totalPercentUsed": 3.1}}
             """), for: .cursor)
 
@@ -93,7 +93,7 @@ struct CursorPanelTests {
 
     @Test(arguments: [#""billingCycleEnd": null,"#, "", #""billingCycleEnd": "soon","#, #""billingCycleEnd": "0","#])
     func withoutAValidEndOfTheBillingCycleTheResetIsUnknown(billingCycleEnd: String) async {
-        await transport.answer(with: .cursor("""
+        await transport.answer(with: .json("""
             {\(billingCycleEnd) "planUsage": {"autoPercentUsed": 18.5, "apiPercentUsed": 42.75}}
             """), for: .cursor)
 
@@ -106,7 +106,7 @@ struct CursorPanelTests {
     }
 
     @Test func aPercentOutOfRangeIsUninterpretable() async {
-        await transport.answer(with: .cursor("""
+        await transport.answer(with: .json("""
             {"billingCycleEnd": "1791590400000", "planUsage": {"autoPercentUsed": -2, "apiPercentUsed": 100.5}}
             """), for: .cursor)
 
@@ -125,7 +125,7 @@ struct CursorPanelTests {
         "Sample text",
     ])
     func aResponseWithoutPlanUsageIsIncompatible(body: String) async {
-        await transport.answer(with: .cursor(body), for: .cursor)
+        await transport.answer(with: .json(body), for: .cursor)
 
         await openPanel()
 
