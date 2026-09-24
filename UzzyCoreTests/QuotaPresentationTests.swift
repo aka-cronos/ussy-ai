@@ -14,6 +14,7 @@ struct QuotaPresentationTests {
     func openedPanel(claudeResponse: String = Self.sampleResponse, clock: (any WallClock)? = nil) async -> UsageCore {
         let core = UsageCore(
             claudeSessionReader: SampleSessionReader(),
+            codexSessionReader: NoSessionReader(),
             transport: SampleTransport(claudeResponse: Data(claudeResponse.utf8)),
             clock: clock ?? FixedClock(readingMoment)
         )

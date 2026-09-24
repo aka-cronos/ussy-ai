@@ -256,6 +256,7 @@ private extension Provider {
     var name: String {
         switch self {
         case .claude: "Claude"
+        case .codex: "Codex"
         }
     }
 
@@ -263,6 +264,7 @@ private extension Provider {
     var officialApp: String {
         switch self {
         case .claude: "Claude Code"
+        case .codex: "Codex CLI"
         }
     }
 }

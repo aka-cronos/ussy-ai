@@ -2,11 +2,13 @@ import Foundation
 
 /// Claude adapter: builds the usage query and translates its response into
 /// normalized quotas.
-enum Claude {
-    static func request(accessToken: String) -> URLRequest {
+enum Claude: ProviderAdapter {
+    static let provider = Provider.claude
+
+    static func request(for session: Session) -> URLRequest {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
         return request
     }
 

@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var eventMonitors: [Any] = []
     private let core = UsageCore(
         claudeSessionReader: ClaudeCodeSessionReader(),
+        codexSessionReader: CodexCLISessionReader(),
         transport: URLSessionTransport(),
         clock: SystemClock()
     )

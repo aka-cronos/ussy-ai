@@ -1,7 +1,8 @@
 import Foundation
 
-public enum Provider: Sendable, Equatable {
+public enum Provider: Sendable, Hashable {
     case claude
+    case codex
 }
 
 public struct PanelState: Sendable, Equatable {
