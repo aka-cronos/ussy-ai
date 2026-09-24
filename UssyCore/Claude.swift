@@ -15,16 +15,17 @@ enum Claude {
         guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return nil }
         let windows: [(QuotaPeriod, Window?)] = [(.fiveHours, response.five_hour), (.weekly, response.seven_day)]
         // A missing window is still a quota: it shows as unavailable.
-        let quotas = windows.map { period, window in
-            QuotaReading(period: period, usedPercent: window?.utilization, reset: reset(window?.resets_at), readAt: moment)
-        }
+        let baseWindows = windows.map { period, window in reading(period, window, at: moment) }
         // Per-model limits only count when sent explicitly and with data.
         let models: [(String, Window?)] = [("Sonnet", response.seven_day_sonnet), ("Opus", response.seven_day_opus)]
-        let perModel = models.compactMap { model, window -> QuotaReading? in
-            guard let utilization = window?.utilization else { return nil }
-            return QuotaReading(period: .weeklyForModel(model), usedPercent: utilization, reset: reset(window?.resets_at), readAt: moment)
+        let perModel = models.compactMap { model, window in
+            window?.utilization == nil ? nil : reading(.weeklyForModel(model), window, at: moment)
         }
-        return quotas + perModel
+        return baseWindows + perModel
+    }
+
+    private static func reading(_ period: QuotaPeriod, _ window: Window?, at moment: Date) -> QuotaReading {
+        QuotaReading(period: period, usedPercent: window?.utilization, reset: reset(window?.resets_at), readAt: moment)
     }
 
     private static func reset(_ text: String?) -> Date? {

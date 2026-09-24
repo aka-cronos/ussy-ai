@@ -101,20 +101,21 @@ private struct QuotaView: View {
                     Text(magnitude.name).font(.caption).foregroundStyle(.secondary)
                 }
                 Bar(fraction: percent / 100)
-                if calculated {
-                    Text("Calculado: 100 − usado").font(.caption).foregroundStyle(.secondary)
+                Group {
+                    if calculated {
+                        Text("Calculado: 100 − usado")
+                    }
+                    Text(Format.reset(quota.reset, now: now))
+                    Text("Última lectura: \(Format.time(quota.readAt))")
                 }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            // No valid reading of this quota, so no reset or reading time to vouch for.
             case .uninterpretable:
                 QuotaNotice(period: quota.period, notice: "Dato no interpretable")
             case .unavailable:
                 QuotaNotice(period: quota.period, notice: "Cuota no disponible")
             }
-            Group {
-                Text(Format.reset(quota.reset, now: now))
-                Text("Última lectura: \(Format.time(quota.readAt))")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
         .padding(.top, 14)
         .accessibilityElement(children: .combine)
