@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import UssyCore
+import UzzyCore
 
 @MainActor
 struct ClaudePanelTests {

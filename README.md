@@ -1,8 +1,8 @@
-# UssyAi
+# Uzzy
 
 A macOS menu bar app that shows the subscription quotas of **Claude**, **Codex** and **Cursor** at a glance: how much you have used, how much is left and when each one resets.
 
-> **Status:** in development. The MVP is specified in [#11](https://github.com/aka-cronos/ussy-ai/issues/11). For now, the app shows the Claude card with the real quotas of the Claude Code session on this Mac.
+> **Status:** in development. The MVP is specified in [#11](https://github.com/aka-cronos/uzzy/issues/11). For now, the app shows the Claude card with the real quotas of the Claude Code session on this Mac.
 
 ## What it does
 
@@ -21,7 +21,7 @@ The app's interface is in Spanish.
 
 ## Disclaimer
 
-The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice. UssyAi is not affiliated with Anthropic, OpenAI or Anysphere.
+The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice. Uzzy is not affiliated with Anthropic, OpenAI or Anysphere.
 
 ## Requirements (planned)
 
@@ -32,22 +32,22 @@ The endpoints the app uses to read quotas are **internal and undocumented** by t
 ## Build and test
 
 ```sh
-xcodebuild test -scheme UssyAi -destination 'platform=macOS,arch=arm64'
-xcodebuild build -scheme UssyAi -destination 'platform=macOS,arch=arm64' -derivedDataPath build
-open build/Build/Products/Debug/UssyAi.app
+xcodebuild test -scheme Uzzy -destination 'platform=macOS,arch=arm64'
+xcodebuild build -scheme Uzzy -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+open build/Build/Products/Debug/Uzzy.app
 ```
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| `UssyAi/` | App: menu bar icon, panel and SwiftUI presentation. |
-| `UssyCore/` | Usage core: panel state, provider adapters and injectable dependencies. |
-| `UssyCoreTests/` | Tests through the usage core, with fake dependencies. |
+| `Uzzy/` | App: menu bar icon, panel and SwiftUI presentation. |
+| `UzzyCore/` | Usage core: panel state, provider adapters and injectable dependencies. |
+| `UzzyCoreTests/` | Tests through the usage core, with fake dependencies. |
 | `CONTEXT.md` | Domain vocabulary (used quota, reset, last valid reading…). |
 | `docs/agents/` | Agent conventions: issues, triage labels, domain docs. |
 
-Design decisions live in the [issues](https://github.com/aka-cronos/ussy-ai/issues?q=is%3Aissue) of map [#1](https://github.com/aka-cronos/ussy-ai/issues/1).
+Design decisions live in the [issues](https://github.com/aka-cronos/uzzy/issues?q=is%3Aissue) of map [#1](https://github.com/aka-cronos/uzzy/issues/1).
 
 ## License
 

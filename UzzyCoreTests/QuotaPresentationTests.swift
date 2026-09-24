@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 import Testing
-import UssyCore
+import UzzyCore
 
 /// Presentation rules of a quota, through the usage core: used or remaining
 /// quota, calculated values, missing and uninterpretable data, and resets.

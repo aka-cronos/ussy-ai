@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000010"
-               BuildableName = "UssyAi.app"
-               BlueprintName = "UssyAi"
-               ReferencedContainer = "container:UssyAi.xcodeproj">
+               BuildableName = "Uzzy.app"
+               BlueprintName = "Uzzy"
+               ReferencedContainer = "container:Uzzy.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -34,9 +34,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000012"
-               BuildableName = "UssyCoreTests.xctest"
-               BlueprintName = "UssyCoreTests"
-               ReferencedContainer = "container:UssyAi.xcodeproj">
+               BuildableName = "UzzyCoreTests.xctest"
+               BlueprintName = "UzzyCoreTests"
+               ReferencedContainer = "container:Uzzy.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -56,9 +56,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000010"
-            BuildableName = "UssyAi.app"
-            BlueprintName = "UssyAi"
-            ReferencedContainer = "container:UssyAi.xcodeproj">
+            BuildableName = "Uzzy.app"
+            BlueprintName = "Uzzy"
+            ReferencedContainer = "container:Uzzy.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -73,9 +73,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000010"
-            BuildableName = "UssyAi.app"
-            BlueprintName = "UssyAi"
-            ReferencedContainer = "container:UssyAi.xcodeproj">
+            BuildableName = "Uzzy.app"
+            BlueprintName = "Uzzy"
+            ReferencedContainer = "container:Uzzy.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
