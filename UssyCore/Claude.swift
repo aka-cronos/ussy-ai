@@ -11,28 +11,37 @@ enum Claude {
     }
 
     /// Returns `nil` when the response does not have the expected format.
-    static func quotas(from body: Data, readAt moment: Date) -> [Quota]? {
+    static func quotas(from body: Data, readAt moment: Date) -> [QuotaReading]? {
         guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return nil }
-        let windows = [("5 horas", response.five_hour), ("Semanal", response.seven_day)]
-        return windows.compactMap { period, window in
-            window.map { Quota(period: period, usedPercent: $0.utilization, reset: reset($0.resets_at), readAt: moment) }
+        let windows: [(QuotaPeriod, Window?)] = [(.fiveHours, response.five_hour), (.weekly, response.seven_day)]
+        // A missing window is still a quota: it shows as unavailable.
+        let quotas = windows.map { period, window in
+            QuotaReading(period: period, usedPercent: window?.utilization, reset: reset(window?.resets_at), readAt: moment)
         }
+        // Per-model limits only count when sent explicitly and with data.
+        let models: [(String, Window?)] = [("Sonnet", response.seven_day_sonnet), ("Opus", response.seven_day_opus)]
+        let perModel = models.compactMap { model, window -> QuotaReading? in
+            guard let utilization = window?.utilization else { return nil }
+            return QuotaReading(period: .weeklyForModel(model), usedPercent: utilization, reset: reset(window?.resets_at), readAt: moment)
+        }
+        return quotas + perModel
     }
 
-    private static func reset(_ text: String?) -> Reset {
-        guard let text else { return .unknown }
-        let date = (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
+    private static func reset(_ text: String?) -> Date? {
+        guard let text else { return nil }
+        return (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text))
             ?? (try? Date.ISO8601FormatStyle().parse(text))
-        return date.map(Reset.at) ?? .unknown
     }
 
     private struct Response: Decodable {
         let five_hour: Window?
         let seven_day: Window?
+        let seven_day_sonnet: Window?
+        let seven_day_opus: Window?
     }
 
     private struct Window: Decodable {
-        let utilization: Double
+        let utilization: Double?
         let resets_at: String?
     }
 }
