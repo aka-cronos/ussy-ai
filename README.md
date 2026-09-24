@@ -2,7 +2,7 @@
 
 A macOS menu bar app that shows the subscription quotas of **Claude**, **Codex** and **Cursor** at a glance: how much you have used, how much is left and when each one resets.
 
-> **Status:** in development. The MVP is specified in [#11](https://github.com/aka-cronos/ussy-ai/issues/11). For now, the app shows the Claude card with sample data.
+> **Status:** in development. The MVP is specified in [#11](https://github.com/aka-cronos/ussy-ai/issues/11). For now, the app shows the Claude card with the real quotas of the Claude Code session on this Mac.
 
 ## What it does
 
