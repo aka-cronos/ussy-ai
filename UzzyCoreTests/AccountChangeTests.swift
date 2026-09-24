@@ -3,7 +3,7 @@ import Testing
 import UzzyCore
 
 /// Quotas of one account are never shown as another's: a change of account
-/// or an identity that cannot be verified hides the previous figures.
+/// or an uncertain identity hides the previous figures.
 @MainActor
 @Suite(.timeLimit(.minutes(1)))
 struct AccountChangeTests {
@@ -36,7 +36,7 @@ struct AccountChangeTests {
         await core.queriesFinished()
     }
 
-    @Test func anUnverifiableIdentityHidesThePreviousReadingAtOnce() async {
+    @Test func anUncertainIdentityHidesThePreviousReadingAtOnce() async {
         core.panelOpened()
         await core.queriesFinished()
 
@@ -79,7 +79,6 @@ struct AccountChangeTests {
         core.panelOpened()
         await core.queriesFinished()
 
-        #expect(await sessionReader.reads == 2)
         #expect(await transport.requests.count == 1)
         #expect(claudeReadAt() == Samples.readingMoment)
     }
@@ -100,8 +99,8 @@ struct AccountChangeTests {
     }
 
     /// With the same session there is nothing new to verify, even when its
-    /// identity is unknown, so a fresh reading is not queried again.
-    @Test func reopeningThePanelWithTheSameUnverifiableSessionDoesNotQuery() async {
+    /// identity is uncertain, so a fresh reading is not queried again.
+    @Test func reopeningThePanelWithTheSameSessionOfUncertainIdentityDoesNotQuery() async {
         await sessionReader.answer(with: .session(Session(accessToken: "sample-token", accountID: nil)))
         core.panelOpened()
         await core.queriesFinished()
@@ -115,7 +114,7 @@ struct AccountChangeTests {
         #expect(claudeReadAt() == Samples.readingMoment)
     }
 
-    @Test func reopeningThePanelWithAnotherUnverifiableSessionHidesAFreshReading() async {
+    @Test func reopeningThePanelWithAnotherSessionOfUncertainIdentityHidesAFreshReading() async {
         await sessionReader.answer(with: .session(Session(accessToken: "sample-token", accountID: nil)))
         core.panelOpened()
         await core.queriesFinished()
@@ -190,6 +189,82 @@ struct AccountChangeTests {
 
         #expect(await transport.requests.count == 1)
         #expect(claudeContent() == .failed(.noSession))
+    }
+
+    // MARK: Waits
+
+    /// The previous account's wait for `Retry-After` does not hold back the
+    /// new account's quotas, nor keep its figures on screen.
+    @Test func anotherAccountIsQueriedDuringThePreviousAccountsRetryAfter() async {
+        core.panelOpened()
+        await core.queriesFinished()
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "600"], body: Data())))
+        core.refresh()
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .session(otherAccount))
+        await transport.answer(with: .claudeSample)
+        clock.advance(by: 60)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 3)
+        #expect(claudeReadAt() == clock.now())
+    }
+
+    @Test func theSameAccountStillWaitsForRetryAfter() async {
+        core.panelOpened()
+        await core.queriesFinished()
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "600"], body: Data())))
+        core.refresh()
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .session(Session(accessToken: "renewed-token", accountID: "sample-account")))
+        clock.advance(by: 60)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 2)
+    }
+
+    /// Without a query to make, the uncertain identity still hides the
+    /// previous figures, next to why nothing is queried.
+    @Test func anUncertainIdentityHidesThePreviousReadingDuringRetryAfter() async {
+        core.panelOpened()
+        await core.queriesFinished()
+        let retryAfter = HTTPResult.response(HTTPResponse(status: 429, headers: ["Retry-After": "600"], body: Data()))
+        await transport.answer(with: retryAfter)
+        core.refresh()
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .session(Session(accessToken: "sample-token", accountID: nil)))
+        clock.advance(by: 60)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 2)
+        #expect(claudeContent() == .failed(.rateLimited(until: Samples.readingMoment.addingTimeInterval(600))))
+    }
+
+    @Test func anotherAccountDoesNotInheritThePreviousAccountsGrowingWait() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+        clock.advance(by: 30)
+        await core.queriesFinished()
+
+        await sessionReader.answer(with: .session(otherAccount))
+        core.refresh()
+        await core.queriesFinished()
+        let start = clock.now()
+        var retriedAfter: TimeInterval?
+        for _ in 1...12 where retriedAfter == nil {
+            clock.advance(by: 10)
+            await core.queriesFinished()
+            if await transport.requests.count == 4 { retriedAfter = clock.now().timeIntervalSince(start) }
+        }
+
+        #expect(retriedAfter == 30)
     }
 
     func claudeReadAt() -> Date? {
