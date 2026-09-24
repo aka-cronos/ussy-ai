@@ -23,7 +23,8 @@ struct ClaudePanelTests {
     @Test func openingThePanelShowsEachClaudeQuotaSeparately() async {
         let core = core(transport: SampleTransport(claudeResponse: Samples.claudeUsageResponse))
 
-        await core.panelOpened()
+        core.panelOpened()
+        await core.queriesFinished()
 
         #expect(core.state == PanelState(magnitude: .used, cards: [
             Card(provider: .claude, content: .quotas([
@@ -49,7 +50,8 @@ struct ClaudePanelTests {
         let transport = SampleTransport(claudeResponse: Samples.claudeUsageResponse)
         let core = core(transport: transport)
 
-        await core.panelOpened()
+        core.panelOpened()
+        await core.queriesFinished()
 
         let requests = await transport.requests
         #expect(requests.count == 1)

@@ -40,6 +40,14 @@ struct PanelView: View {
 
             Divider()
             HStack {
+                Button("Actualizar", action: core.refresh)
+                    .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
+                    .help("Consultar las cuotas ahora")
+                // Keeps its space so the footer does not shift while querying.
+                ProgressView()
+                    .controlSize(.small)
+                    .opacity(core.state.isQuerying ? 1 : 0)
+                    .accessibilityHidden(true)
                 Spacer()
                 // Quotas live only in memory, so quitting has nothing to save.
                 Button("Salir") { NSApp.terminate(nil) }
