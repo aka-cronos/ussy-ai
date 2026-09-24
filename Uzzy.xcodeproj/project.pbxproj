@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10000000000000000000023 /* UssyCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* UssyCore.framework */; };
-		A10000000000000000000024 /* UssyCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* UssyCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		A10000000000000000000025 /* UssyCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* UssyCore.framework */; };
+		A10000000000000000000023 /* UzzyCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* UzzyCore.framework */; };
+		A10000000000000000000024 /* UzzyCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* UzzyCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000025 /* UzzyCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* UzzyCore.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,14 +18,14 @@
 			containerPortal = A10000000000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A10000000000000000000011;
-			remoteInfo = UssyCore;
+			remoteInfo = UzzyCore;
 		};
 		A10000000000000000000029 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A10000000000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A10000000000000000000011;
-			remoteInfo = UssyCore;
+			remoteInfo = UzzyCore;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -36,7 +36,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				A10000000000000000000024 /* UssyCore.framework in Embed Frameworks */,
+				A10000000000000000000024 /* UzzyCore.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -44,25 +44,25 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000007 /* UssyAi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UssyAi.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000008 /* UssyCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = UssyCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000009 /* UssyCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UssyCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000007 /* Uzzy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Uzzy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000008 /* UzzyCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = UzzyCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000009 /* UzzyCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UzzyCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A10000000000000000000004 /* UssyAi */ = {
+		A10000000000000000000004 /* Uzzy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = UssyAi;
+			path = Uzzy;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000005 /* UssyCore */ = {
+		A10000000000000000000005 /* UzzyCore */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = UssyCore;
+			path = UzzyCore;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000006 /* UssyCoreTests */ = {
+		A10000000000000000000006 /* UzzyCoreTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = UssyCoreTests;
+			path = UzzyCoreTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -72,7 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000000000000000000023 /* UssyCore.framework in Frameworks */,
+				A10000000000000000000023 /* UzzyCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,7 +87,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000000000000000000025 /* UssyCore.framework in Frameworks */,
+				A10000000000000000000025 /* UzzyCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,9 +97,9 @@
 		A10000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000004 /* UssyAi */,
-				A10000000000000000000005 /* UssyCore */,
-				A10000000000000000000006 /* UssyCoreTests */,
+				A10000000000000000000004 /* Uzzy */,
+				A10000000000000000000005 /* UzzyCore */,
+				A10000000000000000000006 /* UzzyCoreTests */,
 				A10000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -107,9 +107,9 @@
 		A10000000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000007 /* UssyAi.app */,
-				A10000000000000000000008 /* UssyCore.framework */,
-				A10000000000000000000009 /* UssyCoreTests.xctest */,
+				A10000000000000000000007 /* Uzzy.app */,
+				A10000000000000000000008 /* UzzyCore.framework */,
+				A10000000000000000000009 /* UzzyCoreTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -117,9 +117,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A10000000000000000000010 /* UssyAi */ = {
+		A10000000000000000000010 /* Uzzy */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A10000000000000000000033 /* Build configuration list for PBXNativeTarget "UssyAi" */;
+			buildConfigurationList = A10000000000000000000033 /* Build configuration list for PBXNativeTarget "Uzzy" */;
 			buildPhases = (
 				A10000000000000000000013 /* Sources */,
 				A10000000000000000000014 /* Frameworks */,
@@ -132,16 +132,16 @@
 				A10000000000000000000026 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A10000000000000000000004 /* UssyAi */,
+				A10000000000000000000004 /* Uzzy */,
 			);
-			name = UssyAi;
-			productName = UssyAi;
-			productReference = A10000000000000000000007 /* UssyAi.app */;
+			name = Uzzy;
+			productName = Uzzy;
+			productReference = A10000000000000000000007 /* Uzzy.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A10000000000000000000011 /* UssyCore */ = {
+		A10000000000000000000011 /* UzzyCore */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A10000000000000000000036 /* Build configuration list for PBXNativeTarget "UssyCore" */;
+			buildConfigurationList = A10000000000000000000036 /* Build configuration list for PBXNativeTarget "UzzyCore" */;
 			buildPhases = (
 				A10000000000000000000017 /* Sources */,
 				A10000000000000000000018 /* Frameworks */,
@@ -152,16 +152,16 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				A10000000000000000000005 /* UssyCore */,
+				A10000000000000000000005 /* UzzyCore */,
 			);
-			name = UssyCore;
-			productName = UssyCore;
-			productReference = A10000000000000000000008 /* UssyCore.framework */;
+			name = UzzyCore;
+			productName = UzzyCore;
+			productReference = A10000000000000000000008 /* UzzyCore.framework */;
 			productType = "com.apple.product-type.framework";
 		};
-		A10000000000000000000012 /* UssyCoreTests */ = {
+		A10000000000000000000012 /* UzzyCoreTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A10000000000000000000039 /* Build configuration list for PBXNativeTarget "UssyCoreTests" */;
+			buildConfigurationList = A10000000000000000000039 /* Build configuration list for PBXNativeTarget "UzzyCoreTests" */;
 			buildPhases = (
 				A10000000000000000000020 /* Sources */,
 				A10000000000000000000021 /* Frameworks */,
@@ -173,11 +173,11 @@
 				A10000000000000000000028 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A10000000000000000000006 /* UssyCoreTests */,
+				A10000000000000000000006 /* UzzyCoreTests */,
 			);
-			name = UssyCoreTests;
-			productName = UssyCoreTests;
-			productReference = A10000000000000000000009 /* UssyCoreTests.xctest */;
+			name = UzzyCoreTests;
+			productName = UzzyCoreTests;
+			productReference = A10000000000000000000009 /* UzzyCoreTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -201,7 +201,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A10000000000000000000030 /* Build configuration list for PBXProject "UssyAi" */;
+			buildConfigurationList = A10000000000000000000030 /* Build configuration list for PBXProject "Uzzy" */;
 			developmentRegion = es;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -215,9 +215,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A10000000000000000000010 /* UssyAi */,
-				A10000000000000000000011 /* UssyCore */,
-				A10000000000000000000012 /* UssyCoreTests */,
+				A10000000000000000000010 /* Uzzy */,
+				A10000000000000000000011 /* UzzyCore */,
+				A10000000000000000000012 /* UzzyCoreTests */,
 			);
 		};
 /* End PBXProject section */
@@ -273,12 +273,12 @@
 /* Begin PBXTargetDependency section */
 		A10000000000000000000026 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A10000000000000000000011 /* UssyCore */;
+			target = A10000000000000000000011 /* UzzyCore */;
 			targetProxy = A10000000000000000000027 /* PBXContainerItemProxy */;
 		};
 		A10000000000000000000028 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A10000000000000000000011 /* UssyCore */;
+			target = A10000000000000000000011 /* UzzyCore */;
 			targetProxy = A10000000000000000000029 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -346,7 +346,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = UssyAi;
+				INFOPLIST_KEY_CFBundleDisplayName = Uzzy;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -354,7 +354,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UssyAi;
+				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.Uzzy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
@@ -369,7 +369,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = UssyAi;
+				INFOPLIST_KEY_CFBundleDisplayName = Uzzy;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -377,7 +377,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UssyAi;
+				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.Uzzy;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
@@ -399,7 +399,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UssyCore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UzzyCore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 			};
@@ -421,7 +421,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UssyCore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UzzyCore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 			};
@@ -433,7 +433,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UssyCoreTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UzzyCoreTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -444,7 +444,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UssyCoreTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.akacronos.UzzyCoreTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -452,7 +452,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A10000000000000000000030 /* Build configuration list for PBXProject "UssyAi" */ = {
+		A10000000000000000000030 /* Build configuration list for PBXProject "Uzzy" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000000000000000031 /* Debug */,
@@ -461,7 +461,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A10000000000000000000033 /* Build configuration list for PBXNativeTarget "UssyAi" */ = {
+		A10000000000000000000033 /* Build configuration list for PBXNativeTarget "Uzzy" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000000000000000034 /* Debug */,
@@ -470,7 +470,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A10000000000000000000036 /* Build configuration list for PBXNativeTarget "UssyCore" */ = {
+		A10000000000000000000036 /* Build configuration list for PBXNativeTarget "UzzyCore" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000000000000000037 /* Debug */,
@@ -479,7 +479,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A10000000000000000000039 /* Build configuration list for PBXNativeTarget "UssyCoreTests" */ = {
+		A10000000000000000000039 /* Build configuration list for PBXNativeTarget "UzzyCoreTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000000000000000000040 /* Debug */,

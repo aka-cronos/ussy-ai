@@ -1,5 +1,5 @@
 import SwiftUI
-import UssyCore
+import UzzyCore
 
 struct PanelView: View {
     let core: UsageCore
@@ -8,7 +8,7 @@ struct PanelView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("UssyAi").font(.headline)
+                    Text("Uzzy").font(.headline)
                     Text("Cuotas de suscripción").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -43,9 +43,9 @@ struct PanelView: View {
                 Spacer()
                 // Quotas live only in memory, so quitting has nothing to save.
                 Button("Salir") { NSApp.terminate(nil) }
-                    .accessibilityLabel("Salir de UssyAi")
-                    .accessibilityInputLabels(["Salir", "Salir de UssyAi"])
-                    .help("Salir de UssyAi (⌘Q)")
+                    .accessibilityLabel("Salir de Uzzy")
+                    .accessibilityInputLabels(["Salir", "Salir de Uzzy"])
+                    .help("Salir de Uzzy (⌘Q)")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

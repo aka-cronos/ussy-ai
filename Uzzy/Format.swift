@@ -1,5 +1,5 @@
 import Foundation
-import UssyCore
+import UzzyCore
 
 /// Panel text, in local time. The UI copy is Spanish.
 enum Format {
