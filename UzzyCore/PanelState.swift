@@ -37,6 +37,9 @@ public struct Card: Sendable, Equatable {
 public enum CardContent: Sendable, Equatable {
     /// No valid reading yet.
     case loading
+    /// The session now belongs to another account. The previous account's
+    /// reading is gone, and the new account's quotas are being queried.
+    case loadingNewAccount
     case quotas([Quota])
     /// The last valid reading of the same account, kept after a failed query.
     /// Its quotas are stale and keep the time of their query.

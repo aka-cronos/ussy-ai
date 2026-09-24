@@ -69,9 +69,9 @@ public final class UsageCore {
             // Only a session that changed since the rejection is worth a query.
             queryClaude(.read(skipping: claudeSession))
         default:
-            if !claude.isFresh(at: clock.now()) {
-                queryClaude(.read(skipping: nil))
-            }
+            // A fresh reading needs no query, but may belong to an account
+            // the session no longer has.
+            queryClaude(claude.isFresh(at: clock.now()) ? .recheck : .read(skipping: nil))
         }
         scheduleNextQuery()
         scheduleClaudeRetry()
@@ -167,15 +167,20 @@ public final class UsageCore {
         switch source {
         case .reuse(let reused):
             session = reused
-        case .read(let skipped):
+        case .read, .recheck:
             let reading = await claudeSessionReader.read()
             if let failure = Failure(reading) {
                 claudeSession = nil
                 return .failed(failure, keeping: nil)
             }
-            guard case .session(let read) = reading, read != skipped else { return nil }
-            session = read
+            guard case .session(let read) = reading else { return nil }
+            let lastRead = claudeSession
+            // Later queries no user action asks for reuse it, even when
+            // this one is skipped.
             claudeSession = read
+            if source.skips(read, shown: claude, lastRead: lastRead) { return nil }
+            session = read
+            forgetReadingNotOf(read)
         }
         let result = await transport.send(Claude.request(accessToken: session.accessToken))
         let failure: Failure
@@ -192,6 +197,13 @@ public final class UsageCore {
             return nil
         }
         return .failed(failure, keeping: claude.lastValidReading(of: session.accountID))
+    }
+
+    /// A reading of another account, or of one that cannot be verified, goes
+    /// at once: its figures are never shown as the session's.
+    private func forgetReadingNotOf(_ session: Session) {
+        guard let last = claude.lastValidReading, claude.lastValidReading(of: session.accountID) == nil else { return }
+        claude = last.accountID != nil && session.accountID != nil ? .newAccount : .loading
     }
 
     /// The quotas in the provider's answer, or why there are none.
@@ -267,8 +279,21 @@ private enum SessionSource {
     /// Reads it, which may show the Keychain prompt. Skips the query when the
     /// session read is `skipping`, e.g. the one the provider rejected.
     case read(skipping: Session?)
+    /// Reads it to check that the fresh reading shown is still the session's.
+    /// Queries only when it is not: the account changed or cannot be verified.
+    case recheck
     /// Reuses a session read before, without reading it again.
     case reuse(Session)
+
+    /// Whether the query is not worth making with the session just read.
+    /// `lastRead` is the session read before, `shown` what the card shows.
+    func skips(_ read: Session, shown: ProviderReading, lastRead: Session?) -> Bool {
+        switch self {
+        case .read(let skipped): read == skipped
+        case .recheck: read == lastRead || shown.lastValidReading(of: read.accountID) != nil
+        case .reuse: false
+        }
+    }
 }
 
 private extension Failure {
@@ -299,6 +324,8 @@ private extension Failure {
 /// What the core last learned from a provider.
 private enum ProviderReading {
     case loading
+    /// The session changed to another account; its first query is pending.
+    case newAccount
     case quotas(LastValidReading)
     /// `keeping` the last valid reading of the same account, now stale.
     case failed(Failure, keeping: LastValidReading?)
@@ -317,20 +344,25 @@ private enum ProviderReading {
     /// The last valid reading, if it belongs to `accountID`. A reading whose
     /// account cannot be verified belongs to no one.
     func lastValidReading(of accountID: String?) -> LastValidReading? {
-        let last: LastValidReading?
-        switch self {
-        case .loading: last = nil
-        case .quotas(let reading): last = reading
-        case .failed(_, let kept): last = kept
-        }
-        guard let last, let accountID, last.accountID == accountID else { return nil }
+        guard let last = lastValidReading, let accountID, last.accountID == accountID else { return nil }
         return last
+    }
+
+    /// The last valid reading, whatever account it belongs to.
+    var lastValidReading: LastValidReading? {
+        switch self {
+        case .loading, .newAccount: nil
+        case .quotas(let reading): reading
+        case .failed(_, let kept): kept
+        }
     }
 
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
         switch self {
         case .loading:
             .loading
+        case .newAccount:
+            .loadingNewAccount
         case .quotas(let reading):
             .quotas(reading.quotas.map { $0.quota(in: magnitude, at: now) })
         case .failed(let failure, let kept?):
