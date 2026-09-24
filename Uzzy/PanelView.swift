@@ -4,27 +4,13 @@ import UzzyCore
 struct PanelView: View {
     let core: UsageCore
     let openSettings: () -> Void
-    @AppStorage("displayMagnitude") private var defaultMagnitude: QuotaMagnitude = .used
+    @AppStorage("displayMagnitude") private var selectedMagnitude: QuotaMagnitude = .used
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(Format.appName).font(.headline)
-                    Text("Cuotas de suscripción").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Picker("Mostrar", selection: Binding(get: { core.state.magnitude }, set: {
-                    core.show($0)
-                    defaultMagnitude = $0
-                })) {
-                    Text("Usado").tag(QuotaMagnitude.used)
-                    Text("Restante").tag(QuotaMagnitude.remaining)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityLabel("Mostrar cuota usada o restante")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Format.appName).font(.headline)
+                Text("Cuotas de suscripción").font(.caption).foregroundStyle(.secondary)
             }
             .padding([.horizontal, .top], 16)
             .padding(.bottom, 10)
@@ -66,8 +52,8 @@ struct PanelView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 360)
-        .onAppear { core.show(defaultMagnitude) }
-        .onChange(of: defaultMagnitude) { _, magnitude in core.show(magnitude) }
+        .onAppear { core.show(selectedMagnitude) }
+        .onChange(of: selectedMagnitude) { _, magnitude in core.show(magnitude) }
     }
 }
 

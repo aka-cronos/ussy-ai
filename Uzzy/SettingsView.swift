@@ -2,16 +2,16 @@ import SwiftUI
 import UzzyCore
 
 struct SettingsView: View {
-    @AppStorage("displayMagnitude") private var defaultMagnitude: QuotaMagnitude = .used
+    @AppStorage("displayMagnitude") private var selectedMagnitude: QuotaMagnitude = .used
 
     var body: some View {
         Form {
-            Picker("Mostrar cuotas", selection: $defaultMagnitude) {
+            Picker("Mostrar cuotas", selection: $selectedMagnitude) {
                 Text("Usadas").tag(QuotaMagnitude.used)
                 Text("Restantes").tag(QuotaMagnitude.remaining)
             }
             .pickerStyle(.radioGroup)
-            Text("Esta opción se aplica también al selector del panel.")
+            Text("La selección se conserva al volver a abrir Uzzy.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
