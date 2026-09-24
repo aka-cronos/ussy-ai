@@ -4,7 +4,9 @@ import Security
 /// Reads, read-only, the session Claude Code keeps on this Mac: the access
 /// token from the Keychain and the account identity from `~/.claude.json`.
 /// It keeps only the access token, never the refresh token, and never
-/// refreshes tokens or writes credentials.
+/// refreshes tokens or writes credentials. It never falls back on another
+/// source, such as a `.credentials.json` file, when the Keychain has no
+/// usable session.
 ///
 /// Reading the Keychain can show the system access prompt, so this must only
 /// run after a user action (opening the panel or pressing Actualizar).
