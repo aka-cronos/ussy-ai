@@ -17,10 +17,6 @@ public final class UsageCore {
     /// How often providers are queried while the panel is open. Opening the
     /// panel does not query a provider whose reading is younger than this.
     nonisolated static let refreshInterval: TimeInterval = 5 * 60
-    /// After a network or server failure, automatic queries wait this long,
-    /// doubling with each consecutive failure up to `longestRetryWait`.
-    nonisolated static let firstRetryWait: TimeInterval = 30
-    nonisolated static let longestRetryWait: TimeInterval = 15 * 60
 
     private var magnitude = QuotaMagnitude.used
     private var claude = ProviderReading.loading
@@ -31,15 +27,10 @@ public final class UsageCore {
     /// Identifies the only scheduled query that may still run. `nil` while
     /// the panel is closed.
     @ObservationIgnored private var cadence: UUID?
-    /// Consecutive network or server failures of Claude.
-    @ObservationIgnored private var claudeFailures = 0
-    /// Queries no user action asked for wait until then.
-    @ObservationIgnored private var claudeRetryAt: Date?
-    /// No query at all is made before then, not even on Actualizar: Claude
-    /// asked to wait (429 with `Retry-After`).
-    @ObservationIgnored private var claudeWaitsUntil: Date?
-    /// Identifies the only scheduled retry that may still run.
-    @ObservationIgnored private var claudeRetry: UUID?
+    @ObservationIgnored private var claudeWait = RetryWait()
+    /// Identifies the only scheduled retry that may still run. `nil` while
+    /// the panel is closed.
+    @ObservationIgnored private var claudeRetryTimer: UUID?
 
     private let claudeSessionReader: any SessionReader
     private let transport: any HTTPTransport
@@ -103,7 +94,7 @@ public final class UsageCore {
     /// Stops scheduling queries. A query in flight still finishes.
     public func panelClosed() {
         cadence = nil
-        claudeRetry = nil
+        claudeRetryTimer = nil
     }
 
     /// Returns once no query is in flight.
@@ -127,7 +118,7 @@ public final class UsageCore {
     /// provider rejects a session, or the user denies access to it, only the
     /// user asks again.
     private func queryClaudeOnItsOwn() {
-        guard !claude.waitsForTheUser, let claudeSession, claudeRetryAt.map({ clock.now() >= $0 }) ?? true
+        guard !claude.waitsForTheUser, let claudeSession, claudeWait.allowsAutomaticQuery(at: clock.now())
         else { return }
         queryClaude(.reuse(claudeSession))
     }
@@ -135,7 +126,7 @@ public final class UsageCore {
     /// Never two queries of the same provider at once: a repeated request
     /// joins the one in flight.
     private func queryClaude(_ source: SessionSource) {
-        guard claudeQuery == nil, claudeWaitsUntil.map({ clock.now() >= $0 }) ?? true else { return }
+        guard claudeQuery == nil, claudeWait.allowsAnyQuery(at: clock.now()) else { return }
         claudeQuery = Task {
             if let reading = await readClaude(source) {
                 claude = reading
@@ -145,34 +136,26 @@ public final class UsageCore {
         }
     }
 
-    /// Network and server failures are retried on their own, each time
-    /// waiting longer, up to a cap. When Claude says how long to wait, that
-    /// is the wait. Anything else ends the wait.
+    /// Failures that may pass shortly are retried on their own, after a
+    /// wait. Anything else ends the wait.
     private func planClaudeRetry(after reading: ProviderReading) {
-        claudeWaitsUntil = nil
         guard case .failed(let failure, _) = reading, failure.isWorthRetrying else {
-            claudeFailures = 0
-            claudeRetryAt = nil
+            claudeWait = RetryWait()
             return
         }
-        claudeFailures += 1
-        if case .rateLimited(let until?) = failure {
-            claudeWaitsUntil = until
-            claudeRetryAt = until
-        } else {
-            let wait = min(Self.firstRetryWait * pow(2, Double(claudeFailures - 1)), Self.longestRetryWait)
-            claudeRetryAt = clock.now().addingTimeInterval(wait)
-        }
+        claudeWait.record(failure, at: clock.now())
         scheduleClaudeRetry()
     }
 
     /// Only while the panel is open. Replaces any retry scheduled before.
     private func scheduleClaudeRetry() {
-        guard cadence != nil, let claudeRetryAt else { return }
-        let retry = UUID()
-        claudeRetry = retry
-        clock.schedule(at: claudeRetryAt) { [weak self] in
-            guard let self, self.claudeRetry == retry else { return }
+        guard cadence != nil, let retryAt = claudeWait.retryAt else { return }
+        let timer = UUID()
+        claudeRetryTimer = timer
+        clock.schedule(at: retryAt) { [weak self] in
+            guard let self, claudeRetryTimer == timer else { return }
+            // The wait is over even if a real clock wakes a moment early.
+            claudeWait.end()
             queryClaudeOnItsOwn()
         }
     }
@@ -215,7 +198,7 @@ public final class UsageCore {
     private static func answer(to result: HTTPResult, at moment: Date) -> Answer {
         let response: HTTPResponse
         switch result {
-        case .response(let answer): response = answer
+        case .response(let received): response = received
         case .networkError: return .failed(.offline)
         case .timeout: return .failed(.timedOut)
         }
@@ -230,6 +213,46 @@ public final class UsageCore {
         // Anything else means the route or its format changed.
         default: return .failed(.incompatibleResponse)
         }
+    }
+}
+
+/// How long a provider's queries wait after failures that may pass shortly:
+/// the network, the server, or the provider asking to wait.
+private struct RetryWait {
+    /// The first wait doubles with each consecutive failure, up to the longest.
+    static let first: TimeInterval = 30
+    static let longest: TimeInterval = 15 * 60
+
+    private var failures = 0
+    /// Queries no user action asked for wait until then.
+    private(set) var retryAt: Date?
+    /// No query at all is made before then, not even on Actualizar: the
+    /// provider asked to wait (429 with `Retry-After`).
+    private var blockedUntil: Date?
+
+    mutating func record(_ failure: Failure, at now: Date) {
+        failures += 1
+        if case .rateLimited(let until?) = failure {
+            blockedUntil = until
+            retryAt = until
+        } else {
+            blockedUntil = nil
+            retryAt = now.addingTimeInterval(min(Self.first * pow(2, Double(failures - 1)), Self.longest))
+        }
+    }
+
+    /// Keeps counting failures, so the next wait is still longer.
+    mutating func end() {
+        retryAt = nil
+        blockedUntil = nil
+    }
+
+    func allowsAutomaticQuery(at now: Date) -> Bool {
+        retryAt.map { now >= $0 } ?? true
+    }
+
+    func allowsAnyQuery(at now: Date) -> Bool {
+        blockedUntil.map { now >= $0 } ?? true
     }
 }
 
@@ -260,7 +283,7 @@ private extension Failure {
     }
 
     /// The network or the provider's server failed, or the provider asked to
-    /// wait: it may work shortly.
+    /// wait (429): it may work shortly.
     var isWorthRetrying: Bool {
         switch self {
         case .offline, .timedOut, .serverError, .rateLimited: true
