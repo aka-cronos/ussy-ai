@@ -6,8 +6,9 @@ public enum Samples {
     /// Reading moment consistent with the sample responses: 2026-09-23T14:32:00Z.
     public static let readingMoment = Date(timeIntervalSince1970: 1_790_173_920)
 
-    /// Claude's `GET /api/oauth/usage`. Includes fields that are ignored
-    /// (opaque names, empty per-model limits and `extra_usage`).
+    /// Claude's `GET /api/oauth/usage`. `limits[]` repeats both windows, as the
+    /// real response does. Includes fields that are ignored (opaque names,
+    /// empty per-model limits and `extra_usage`).
     public static let claudeUsageResponse = Data(#"""
     {
       "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
@@ -16,7 +17,11 @@ public enum Samples {
       "seven_day_opus": null,
       "seven_day_sonnet": null,
       "iguana_necktie": null,
-      "extra_usage": {"is_enabled": false, "monthly_limit": null, "used_credits": null, "utilization": null}
+      "extra_usage": {"is_enabled": false, "monthly_limit": null, "used_credits": null, "utilization": null},
+      "limits": [
+        {"kind": "session", "percent": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00", "scope": null},
+        {"kind": "weekly_all", "percent": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00", "scope": null}
+      ]
     }
     """#.utf8)
 }
