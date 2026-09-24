@@ -35,3 +35,11 @@ _Avoid_: Provider-reported value (when it is calculated), estimate (for an exact
 **Session**:
 The sign-in an official app (Claude Code, Codex CLI, Cursor) keeps on this Mac, which Uzzy reuses read-only to query quotas. It can be missing, expired (rejected by the provider), inaccessible (access denied by the user) or in an unknown format.
 _Avoid_: Login, account (the account is the identity behind a session), the 5-hour quota period.
+
+**Account**:
+The provider identity behind a session, e.g. Claude Code's account UUID. A last valid reading belongs to exactly one account and is never shown for another.
+_Avoid_: User, profile, session (the session is how Uzzy reaches the account).
+
+**Uncertain identity**:
+A session whose account cannot be verified, e.g. because its identity is missing. No previous reading is shown for it, since it cannot be attributed.
+_Avoid_: Unknown account (as if it were a distinct account), anonymous session.
