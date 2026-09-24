@@ -17,6 +17,8 @@ public struct Session: Sendable, Equatable {
 public enum SessionReading: Sendable, Equatable {
     case session(Session)
     case noSession
+    /// A session of a kind that has no subscription quotas, e.g. an API key.
+    case withoutSubscriptionQuotas
     case accessDenied
     case unknownFormat
 }

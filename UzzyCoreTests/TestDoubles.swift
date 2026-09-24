@@ -67,12 +67,20 @@ actor ControlledSessionReader: SessionReader {
     }
 }
 
-/// Answers every request with the sample Claude response, or with `result`
-/// when set. While held, requests wait until the test releases them.
+/// A provider signed out of its official app: the panel never queries it.
+struct NoSessionReader: SessionReader {
+    func read() async -> SessionReading {
+        .noSession
+    }
+}
+
+/// Answers each provider's requests with its sample response, or with the
+/// result set for it. While a provider is held, its requests wait until the
+/// test releases them.
 actor ControlledTransport: HTTPTransport {
     private(set) var requests: [URLRequest] = []
-    private var result = HTTPResult.claudeSample
-    private var held = false
+    private var results: [Provider: HTTPResult] = [.claude: .claudeSample, .codex: .codexSample]
+    private var held: Set<Provider> = []
     private var heldRequests: [CheckedContinuation<Void, Never>] = []
     private var requestWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
@@ -81,24 +89,34 @@ actor ControlledTransport: HTTPTransport {
         let arrived = requestWaiters.filter { $0.count <= requests.count }
         requestWaiters.removeAll { $0.count <= requests.count }
         arrived.forEach { $0.continuation.resume() }
-        if held {
+        guard let provider = Provider(of: request) else { return .networkError }
+        if held.contains(provider) {
             await withCheckedContinuation { heldRequests.append($0) }
         }
-        return result
+        return results[provider] ?? .networkError
     }
 
-    func answer(with result: HTTPResult) {
-        self.result = result
+    /// Answers the requests of `provider`, or of every provider, with `result`.
+    func answer(with result: HTTPResult, for provider: Provider? = nil) {
+        for each in provider.map({ [$0] }) ?? Provider.allCases {
+            results[each] = result
+        }
     }
 
-    func hold() {
-        held = true
+    /// Holds the requests of `provider`, or of every provider.
+    func hold(_ provider: Provider? = nil) {
+        held.formUnion(provider.map { [$0] } ?? Provider.allCases)
     }
 
     func release() {
-        held = false
+        held.removeAll()
         heldRequests.forEach { $0.resume() }
         heldRequests.removeAll()
+    }
+
+    /// The requests sent to `provider`.
+    func requests(to provider: Provider) -> [URLRequest] {
+        requests.filter { Provider(of: $0) == provider }
     }
 
     /// Returns once `count` requests have arrived.
@@ -108,11 +126,34 @@ actor ControlledTransport: HTTPTransport {
     }
 }
 
+extension Provider {
+    /// The provider a request is sent to, by its host.
+    init?(of request: URLRequest) {
+        switch request.url?.host {
+        case "api.anthropic.com": self = .claude
+        case "chatgpt.com": self = .codex
+        default: return nil
+        }
+    }
+}
+
 extension HTTPResult {
     /// The sample Claude response, answered with a 200.
     static let claudeSample = HTTPResult.response(
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.claudeUsageResponse)
     )
+
+    /// The sample Codex response, answered with a 200.
+    static let codexSample = HTTPResult.response(
+        HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.codexUsageResponse)
+    )
+
+    /// A Codex response, answered with a 200, with the given `rate_limit`
+    /// and `additional_rate_limits` JSON.
+    static func codex(rateLimit: String, additional: String = "null") -> HTTPResult {
+        let body = #"{"plan_type": "plus", "rate_limit": \#(rateLimit), "additional_rate_limits": \#(additional)}"#
+        return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
+    }
 
     /// An empty response with `status`.
     static func status(_ status: Int) -> HTTPResult {
