@@ -109,6 +109,13 @@ struct ScenarioTests {
         #expect(contents(of: core)[.claude] == .failed(.sessionAccessDenied))
     }
 
+    @Test func unavailableSessionStoresShowDistinctFailures() async {
+        let core = await Scenario.unavailableSessionStores.start()
+
+        #expect(contents(of: core)[.claude] == .failed(.sessionStoreUnavailable))
+        #expect(contents(of: core)[.cursor] == .failed(.sessionStoreBusy))
+    }
+
     @Test func incompatibleSessionShowsEverySessionInAnUnknownFormat() async {
         let core = await Scenario.incompatibleSession.start()
 
@@ -119,6 +126,12 @@ struct ScenarioTests {
         let core = await Scenario.incompatibleResponse.start()
 
         #expect(core.state.cards.map(\.content) == [.failed(.incompatibleResponse), .failed(.incompatibleResponse), .failed(.incompatibleResponse)])
+    }
+
+    @Test func incompatibleCursorResetShowsItsOwnFailure() async {
+        let core = await Scenario.incompatibleCursorReset.start()
+
+        #expect(contents(of: core)[.cursor] == .failed(.incompatibleResetFormat))
     }
 
     @Test func networkFailuresShowTheNetworkAndServerFailuresWithoutAPreviousReading() async {

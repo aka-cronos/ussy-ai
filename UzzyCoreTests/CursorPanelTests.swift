@@ -105,6 +105,16 @@ struct CursorPanelTests {
         ]))
     }
 
+    @Test func aNumericBillingCycleEndExplainsTheIncompatibleResetFormat() async {
+        await transport.answer(with: .json("""
+            {"billingCycleEnd": 1791590400000, "planUsage": {"autoPercentUsed": 18.5, "apiPercentUsed": 42.75}}
+            """), for: .cursor)
+
+        await openPanel()
+
+        #expect(cursorContent() == .failed(.incompatibleResetFormat))
+    }
+
     @Test func aPercentOutOfRangeIsUninterpretable() async {
         await transport.answer(with: .json("""
             {"billingCycleEnd": "1791590400000", "planUsage": {"autoPercentUsed": -2, "apiPercentUsed": 100.5}}

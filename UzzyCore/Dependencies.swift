@@ -20,6 +20,10 @@ public enum SessionReading: Sendable, Equatable {
     /// A session of a kind that has no subscription quotas, e.g. an API key.
     case withoutSubscriptionQuotas
     case accessDenied
+    /// The session store could not be read right now.
+    case storeUnavailable
+    /// The session store was locked by another process.
+    case storeBusy
     case unknownFormat
 }
 

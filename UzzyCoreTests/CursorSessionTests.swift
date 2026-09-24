@@ -77,6 +77,35 @@ struct CursorSessionTests {
         #expect(await transport.requests(to: .cursor).isEmpty)
     }
 
+    @Test func anUnreadableDatabaseIsNotCalledAnIncompatibleSession() async throws {
+        try FileManager.default.removeItem(at: database.file)
+        try FileManager.default.createDirectory(at: database.file, withIntermediateDirectories: false)
+
+        await openPanel()
+
+        #expect(cursorContent() == .failed(.sessionStoreUnavailable))
+        #expect(await transport.requests(to: .cursor).isEmpty)
+    }
+
+    @Test func aLockedDatabaseExplainsThatTheSessionIsBusy() async throws {
+        var lock: OpaquePointer?
+        guard sqlite3_open(database.file.path(percentEncoded: false), &lock) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        defer {
+            sqlite3_exec(lock, "ROLLBACK", nil, nil, nil)
+            sqlite3_close(lock)
+        }
+        guard sqlite3_exec(lock, "BEGIN EXCLUSIVE", nil, nil, nil) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+
+        await openPanel()
+
+        #expect(cursorContent() == .failed(.sessionStoreBusy))
+        #expect(await transport.requests(to: .cursor).isEmpty)
+    }
+
     /// Cursor renews its token often; the account behind it stays the same.
     @Test func aRenewedTokenOfTheSameAccountKeepsItsQuotas() async throws {
         try database.store(accessToken: SampleCursorDatabase.token(subject: "auth0|sample-user"))

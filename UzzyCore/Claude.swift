@@ -12,13 +12,13 @@ enum Claude: ProviderAdapter {
         return request
     }
 
-    /// Returns `nil` when the response does not have the expected format.
+    /// Returns an error when the response does not have the expected format.
     ///
     /// `limits[]` repeats the windows (`session`, `weekly_all`) and carries the
     /// per-model limits (`weekly_scoped`), so a quota can arrive more than once.
     /// Every copy goes into the reading, which decides whether they agree.
-    static func quotas(from body: Data, readAt moment: Date) -> [QuotaReading]? {
-        guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return nil }
+    static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure> {
+        guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return .failure(.incompatibleResponse) }
         let limits = response.limits ?? []
         func copies(_ window: Window?, kind: String, model: String? = nil) -> [Window] {
             [window].compactMap { $0 }
@@ -37,7 +37,7 @@ enum Claude: ProviderAdapter {
             let windows = copies(legacy[model] ?? nil, kind: "weekly_scoped", model: model)
             return windows.contains { $0.utilization != nil } ? reading(.limit(model, .weekly), windows, at: moment) : nil
         }
-        return base + perModel
+        return .success(base + perModel)
     }
 
     private static func reading(_ period: QuotaPeriod, _ windows: [Window], at moment: Date) -> QuotaReading {

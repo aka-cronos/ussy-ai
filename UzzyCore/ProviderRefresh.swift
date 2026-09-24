@@ -6,8 +6,8 @@ import Observation
 protocol ProviderAdapter {
     static var provider: Provider { get }
     static func request(for session: Session) -> URLRequest
-    /// Returns `nil` when the response does not have the expected format.
-    static func quotas(from body: Data, readAt moment: Date) -> [QuotaReading]?
+    /// Returns a specific failure when the response cannot be translated.
+    static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure>
 }
 
 /// The refresh of a single provider: its session, its queries, its retry
@@ -212,8 +212,10 @@ final class ProviderRefresh {
         }
         switch response.status {
         case 200:
-            guard let quotas = adapter.quotas(from: response.body, readAt: moment) else { return .failed(.incompatibleResponse) }
-            return .quotas(quotas)
+            switch adapter.quotas(from: response.body, readAt: moment) {
+            case .success(let quotas): return .quotas(quotas)
+            case .failure(let failure): return .failed(failure)
+            }
         case 401: return .failed(.sessionExpired)
         case 403: return .failed(.accessRefused)
         case 429: return .failed(.rateLimited(until: retryAfter(response.headers, from: moment)))
@@ -312,6 +314,8 @@ private extension Failure {
         case .noSession: self = .noSession
         case .withoutSubscriptionQuotas: self = .sessionWithoutSubscriptionQuotas
         case .accessDenied: self = .sessionAccessDenied
+        case .storeUnavailable: self = .sessionStoreUnavailable
+        case .storeBusy: self = .sessionStoreBusy
         case .unknownFormat: self = .incompatibleSession
         }
     }
