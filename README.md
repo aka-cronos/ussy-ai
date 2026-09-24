@@ -22,15 +22,19 @@ The app's interface is in Spanish.
 
 ## Disclaimer
 
-The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice. Uzzy is not affiliated with Anthropic, OpenAI or Anysphere.
+The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice, and each person is responsible for using them within their provider's terms.
 
-## Requirements (planned)
+Uzzy is an independent project, not affiliated with, endorsed by or sponsored by the makers of Claude, Codex, ChatGPT or Cursor. All product names and trademarks belong to their respective owners.
 
-- macOS 27, Apple Silicon.
-- Full Xcode to build.
+## Requirements
+
+- macOS 27 on Apple Silicon.
+- Xcode 27 to build. There are no prebuilt releases: you build Uzzy yourself.
 - A signed-in session in Claude Code, Codex CLI (ChatGPT mode) and/or Cursor.
 
 ## Build and test
+
+No Apple Developer account is needed: by default the app is signed ad hoc ("Sign to Run Locally"). To sign with your own team, see [Signing](CONTRIBUTING.md#signing).
 
 ```sh
 xcodebuild test -scheme Uzzy -destination 'platform=macOS,arch=arm64'
@@ -56,11 +60,21 @@ Release builds leave the scenarios, the fakes and the sample responses out.
 | `UzzyCore/` | Usage core: panel state, provider adapters and injectable dependencies. In Debug builds, also the fake dependencies, the sample responses and the debug scenarios. |
 | `UzzyCoreTests/` | Tests through the usage core, with the fake dependencies. |
 | `CONTEXT.md` | Domain vocabulary (used quota, reset, last valid reading…). |
+| `Config/` | Shared build settings (signing). |
 | `docs/agents/` | Agent conventions: issues, triage labels, domain docs. |
+| `.agents/skills/` | Agent skills used to work on the repo, copied from their upstream repos (see `skills-lock.json`). |
 | `prototypes/` | Throwaway panel prototypes (HTML, fictional data). |
 
 Design decisions live in the [issues](https://github.com/aka-cronos/uzzy/issues?q=is%3Aissue) of map [#1](https://github.com/aka-cronos/uzzy/issues/1).
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## Acknowledgements
+
+Endpoint research was informed by [OpenUsage](https://github.com/robinebers/openusage) (MIT) and [openai/codex](https://github.com/openai/codex) (Apache-2.0). No code was copied from either.
+
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The agent skills under `.agents/skills/` are third-party MIT code; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
