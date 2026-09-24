@@ -39,6 +39,7 @@ final class ScenarioSwitch {
 /// The panel with a bar on top to choose the scenario it shows.
 struct ScenarioPanel: View {
     let scenarios: ScenarioSwitch
+    let openSettings: () -> Void
     let choose: @MainActor (Scenario?) -> Void
 
     var body: some View {
@@ -61,7 +62,8 @@ struct ScenarioPanel: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(.orange.opacity(0.12))
-            PanelView(core: scenarios.core)
+            PanelView(core: scenarios.core, openSettings: openSettings)
+                .id(ObjectIdentifier(scenarios.core))
         }
     }
 }

@@ -21,7 +21,7 @@ public struct PanelState: Sendable, Equatable {
     }
 }
 
-public enum QuotaMagnitude: Sendable, Equatable {
+public enum QuotaMagnitude: String, Sendable, Equatable {
     case used
     case remaining
 }

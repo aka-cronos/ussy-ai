@@ -8,7 +8,7 @@ A macOS menu bar app that shows the subscription quotas of **Claude**, **Codex**
 
 - A fixed menu bar icon opens a panel with one card per provider.
 - Each quota is shown separately (e.g. "5 horas" and "Semanal"), with its own bar, its reset in local time and the time of the last reading. Quotas are never combined into a single percentage.
-- A switch between used quota and remaining quota.
+- A Settings window (or ⌘, while the panel is open) to choose used or remaining quota. The choice is remembered across launches.
 - If a provider fails, its card explains why (no session, expired session, offline, incompatible response…) and the others keep working. Missing data is never shown as zero.
 
 The app's interface is in Spanish.
@@ -18,6 +18,7 @@ The app's interface is in Spanish.
 - Reuses, **read-only**, the sessions that already exist in Claude Code, Codex CLI and Cursor. It never asks for passwords, signs in, refreshes tokens or writes credentials.
 - Only connects to `api.anthropic.com`, `chatgpt.com` and `api2.cursor.sh`. No telemetry and no server of its own.
 - Quotas live only in memory; nothing is written to disk.
+- The used/remaining display preference is stored in local `UserDefaults`; it contains no quota, token, email or account identifier.
 
 ## Disclaimer
 

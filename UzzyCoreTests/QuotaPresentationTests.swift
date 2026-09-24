@@ -40,6 +40,22 @@ struct QuotaPresentationTests {
         #expect(claudeQuotas(core)?.map(\.value) == [.percent(35, calculated: false), .percent(62, calculated: false)])
     }
 
+    @Test func savedMagnitudeCanBeUsedWhenCreatingTheCore() async {
+        let core = UsageCore(
+            claudeSessionReader: SampleSessionReader(),
+            codexSessionReader: NoSessionReader(),
+            cursorSessionReader: NoSessionReader(),
+            transport: SampleTransport(),
+            clock: FixedClock(readingMoment),
+            initialMagnitude: .remaining
+        )
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(core.state.magnitude == .remaining)
+        #expect(claudeQuotas(core)?.map(\.value) == [.percent(65, calculated: true), .percent(38, calculated: true)])
+    }
+
     @Test func remainingQuotaIsCalculatedFromTheUsedQuotaOfEachQuota() async {
         let core = await openedPanel()
 

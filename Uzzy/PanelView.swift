@@ -3,26 +3,14 @@ import UzzyCore
 
 struct PanelView: View {
     let core: UsageCore
+    let openSettings: () -> Void
+    @AppStorage("displayMagnitude") private var selectedMagnitude: QuotaMagnitude = .used
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(Format.appName).font(.headline)
-                    Text("Cuotas de suscripción").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Picker("Mostrar", selection: Binding(get: { core.state.magnitude }, set: core.show)) {
-                    Text("Usado").tag(QuotaMagnitude.used)
-                    Text("Restante").tag(QuotaMagnitude.remaining)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityLabel("Mostrar cuota usada o restante")
-            }
-            .padding([.horizontal, .top], 16)
-            .padding(.bottom, 10)
+            Text(Format.appName).font(.headline)
+                .padding([.horizontal, .top], 16)
+                .padding(.bottom, 10)
 
             ScrollView {
                 // Recomputes the time left until each reset every minute.
@@ -40,25 +28,40 @@ struct PanelView: View {
 
             Divider()
             HStack {
-                Button("Actualizar", action: core.refresh)
-                    .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
-                    .help("Consultar las cuotas ahora")
-                // Keeps its space so the footer does not shift while querying.
-                ProgressView()
-                    .controlSize(.small)
-                    .opacity(core.state.isQuerying ? 1 : 0)
-                    .accessibilityHidden(true)
-                Spacer()
                 // Quotas live only in memory, so quitting has nothing to save.
                 Button("Salir") { NSApp.terminate(nil) }
                     .accessibilityLabel(Format.quitApp)
                     .accessibilityInputLabels(["Salir", Format.quitApp])
                     .help("\(Format.quitApp) (⌘Q)")
+                Spacer()
+                Button(action: openSettings) {
+                    Image(systemName: "gearshape")
+                        .frame(width: 18, height: 18)
+                }
+                .accessibilityLabel("Ajustes")
+                .help("Abrir ajustes (⌘,)")
+                Button(action: core.refresh) {
+                    Group {
+                        if core.state.isQuerying {
+                            ProgressView()
+                                .controlSize(.small)
+                                .accessibilityHidden(true)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .frame(width: 18, height: 18)
+                }
+                .accessibilityLabel("Actualizar")
+                .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
+                .help("Consultar las cuotas ahora")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
         .frame(width: 360)
+        .onAppear { core.show(selectedMagnitude) }
+        .onChange(of: selectedMagnitude) { _, magnitude in core.show(magnitude) }
     }
 }
 
@@ -67,9 +70,29 @@ private struct CardView: View {
     let magnitude: QuotaMagnitude
     let now: Date
 
+    private var lastReadAt: Date? {
+        let quotas: [Quota]
+        switch card.content {
+        case .quotas(let values), .stale(let values, _): quotas = values
+        default: return nil
+        }
+        // A missing or uninterpretable figure has no valid reading to date.
+        return quotas.compactMap { quota -> Date? in
+            if case .percent = quota.value { quota.readAt } else { nil }
+        }.min()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(card.provider.name).fontWeight(.semibold)
+            HStack(alignment: .firstTextBaseline) {
+                Text(card.provider.name).fontWeight(.semibold)
+                Spacer()
+                if let lastReadAt {
+                    Text("Última lectura: \(Format.dayAndTime(lastReadAt, now: now))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             switch card.content {
             case .loading:
@@ -101,23 +124,9 @@ private struct QuotasView: View {
     let magnitude: QuotaMagnitude
     let now: Date
 
-    private var lastReadAt: Date? {
-        // Every valid figure in a provider response has the same query time.
-        // A missing or uninterpretable figure has no reading to date.
-        quotas.compactMap { quota -> Date? in
-            if case .percent = quota.value { quota.readAt } else { nil }
-        }.min()
-    }
-
     var body: some View {
         ForEach(quotas, id: \.period) { quota in
             QuotaView(quota: quota, magnitude: magnitude, now: now)
-        }
-        if let lastReadAt {
-            Text("Última lectura: \(Format.dayAndTime(lastReadAt, now: now))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 12)
         }
     }
 }
@@ -288,6 +297,7 @@ private extension QuotaPeriod {
         case .weekly: "Semanal"
         case .lasting(let seconds): Format.duration(seconds: seconds)
         case .billingCycle: "Ciclo de facturación"
+        case .limit(let name, .billingCycle): name
         case .limit(let name, let period): "\(period.name) · \(name)"
         }
     }
