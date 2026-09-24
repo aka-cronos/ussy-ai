@@ -54,4 +54,11 @@ public struct SystemClock: WallClock {
     public func now() -> Date {
         Date()
     }
+
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+            action()
+        }
+    }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 import Testing
 import UzzyCore
 
@@ -18,7 +17,8 @@ struct QuotaPresentationTests {
             transport: SampleTransport(claudeResponse: Data(claudeResponse.utf8)),
             clock: clock ?? FixedClock(readingMoment)
         )
-        await core.panelOpened()
+        core.panelOpened()
+        await core.queriesFinished()
         return core
     }
 
@@ -292,22 +292,5 @@ struct QuotaPresentationTests {
         """)
 
         #expect(claudeQuotas(core)?.map(\.period) == [.fiveHours, .weekly])
-    }
-}
-
-/// A clock the test moves by hand.
-final class ManualClock: WallClock {
-    private let moment: Mutex<Date>
-
-    init(_ moment: Date) {
-        self.moment = Mutex(moment)
-    }
-
-    func now() -> Date {
-        moment.withLock { $0 }
-    }
-
-    func move(to moment: Date) {
-        self.moment.withLock { $0 = moment }
     }
 }

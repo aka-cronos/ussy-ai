@@ -59,4 +59,7 @@ public struct FixedClock: WallClock {
     public func now() -> Date {
         moment
     }
+
+    /// The clock never moves, so scheduled work never runs.
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {}
 }
