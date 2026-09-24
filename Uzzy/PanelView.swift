@@ -82,21 +82,43 @@ private struct CardView: View {
             case .failed(let failure):
                 FailureMessage(failure: failure, provider: card.provider, now: now)
             case .quotas(let quotas):
-                ForEach(quotas, id: \.period) { quota in
-                    QuotaView(quota: quota, magnitude: magnitude, now: now)
-                }
+                QuotasView(quotas: quotas, magnitude: magnitude, now: now)
             case .stale(let quotas, let failure):
                 // Why the figures below could not be refreshed.
                 FailureMessage(failure: failure, provider: card.provider, now: now)
-                ForEach(quotas, id: \.period) { quota in
-                    QuotaView(quota: quota, magnitude: magnitude, now: now)
-                }
+                QuotasView(quotas: quotas, magnitude: magnitude, now: now)
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+    }
+}
+
+private struct QuotasView: View {
+    let quotas: [Quota]
+    let magnitude: QuotaMagnitude
+    let now: Date
+
+    private var lastReadAt: Date? {
+        // Every valid figure in a provider response has the same query time.
+        // A missing or uninterpretable figure has no reading to date.
+        quotas.compactMap { quota -> Date? in
+            if case .percent = quota.value { quota.readAt } else { nil }
+        }.min()
+    }
+
+    var body: some View {
+        ForEach(quotas, id: \.period) { quota in
+            QuotaView(quota: quota, magnitude: magnitude, now: now)
+        }
+        if let lastReadAt {
+            Text("Última lectura: \(Format.dayAndTime(lastReadAt, now: now))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 12)
+        }
     }
 }
 
@@ -130,7 +152,6 @@ private struct QuotaView: View {
                         Text("Calculado: 100 − usado")
                     }
                     Text(Format.reset(quota.reset, now: now))
-                    Text("Última lectura: \(Format.time(quota.readAt))")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
