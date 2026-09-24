@@ -216,8 +216,8 @@ extension HTTPResult {
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.cursorUsageResponse)
     )
 
-    /// A Cursor response, answered with a 200, with the given body.
-    public static func cursor(_ body: String) -> HTTPResult {
+    /// A response of any provider, answered with a 200, with the given body.
+    public static func json(_ body: String) -> HTTPResult {
         .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
     }
 

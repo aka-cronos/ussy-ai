@@ -1,0 +1,234 @@
+import Foundation
+
+// Debug scenarios: never in a Release build.
+#if DEBUG
+
+/// A state of the panel to review by eye in a Debug build, without touching
+/// the accounts. It drives a usage core through the same seam as the tests:
+/// fake sessions, a fake transport answering with the sample responses, and
+/// a clock that only moves when the scenario moves it. All data is fictional.
+public struct Scenario: Sendable, Identifiable, Hashable {
+    /// Stable, for choosing a scenario from the command line.
+    public let id: String
+    /// The state it shows, as the panel names it.
+    public let name: String
+    private let play: @MainActor @Sendable (Stage) async -> Void
+
+    init(_ id: String, _ name: String, play: @escaping @MainActor @Sendable (Stage) async -> Void) {
+        self.id = id
+        self.name = name
+        self.play = play
+    }
+
+    /// A usage core with its panel open, showing the scenario. Closing and
+    /// opening the panel again keeps showing it.
+    @MainActor
+    public func start() async -> UsageCore {
+        let stage = Stage()
+        await play(stage)
+        return stage.core
+    }
+
+    public static func == (lhs: Scenario, rhs: Scenario) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+extension Scenario {
+    /// Every scenario, in the order to review them. Together they show every
+    /// visible state of the panel.
+    public static let all: [Scenario] = [
+        quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
+        uninterpretable, noSession, sessionExpired, sessionAccessDenied, incompatibleSession, incompatibleResponse,
+        networkFailures, refused,
+    ]
+
+    /// Every card shows the sample quotas.
+    public static let quotas = Scenario("quotas", "Cuotas al día") { stage in
+        await stage.openPanel()
+    }
+
+    /// «Consultando cuotas»: the first query of every card is still running.
+    public static let loading = Scenario("loading", "Consultando cuotas") { stage in
+        await stage.transport.hold()
+        await stage.openPanel(waitingFor: [])
+        await stage.transport.waitForRequests(3)
+    }
+
+    /// «Consultando nueva cuenta»: every session changed to another account,
+    /// whose first query is still running.
+    public static let newAccount = Scenario("newAccount", "Consultando nueva cuenta") { stage in
+        await stage.openPanel()
+        await stage.answerEverySession(with: .session(Session(accessToken: "other-token", accountID: "other-account")))
+        await stage.transport.hold()
+        stage.core.refresh()
+        await stage.transport.waitForRequests(6)
+    }
+
+    /// «Desactualizado»: a later query of every card failed, so each keeps
+    /// its last valid reading, 20 minutes old.
+    public static let stale = Scenario("stale", "Desactualizado") { stage in
+        await stage.openPanel()
+        stage.core.panelClosed()
+        stage.clock.advance(by: 20 * 60)
+        await stage.transport.answer(with: .networkError, for: .claude)
+        await stage.transport.answer(with: .status(503), for: .codex)
+        await stage.transport.answer(with: .timeout, for: .cursor)
+        await stage.openPanel()
+    }
+
+    /// «Pendiente de confirmar»: Claude's 5-hour reset passed and the query
+    /// after it failed, so the figure is stale and the reset unconfirmed.
+    public static let pendingConfirmation = Scenario("pendingConfirmation", "Pendiente de confirmar") { stage in
+        await stage.openPanel()
+        stage.core.panelClosed()
+        // 2026-09-23T17:30:00Z, half an hour after Claude's 5-hour reset.
+        stage.clock.move(to: Date(timeIntervalSince1970: 1_790_184_600))
+        await stage.transport.answer(with: .networkError, for: .claude)
+        await stage.openPanel()
+    }
+
+    /// «Reinicio desconocido»: Claude sends no date for the weekly reset.
+    public static let unknownReset = Scenario("unknownReset", "Reinicio desconocido") { stage in
+        await stage.transport.answer(with: .json(#"""
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": null}
+        }
+        """#), for: .claude)
+        await stage.openPanel()
+    }
+
+    /// «Cuota no disponible»: Claude leaves out the weekly quota.
+    public static let unavailable = Scenario("unavailable", "Cuota no disponible") { stage in
+        await stage.transport.answer(with: .json(#"""
+        {"five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"}}
+        """#), for: .claude)
+        await stage.openPanel()
+    }
+
+    /// «Esta sesión no ofrece cuotas de suscripción»: Codex CLI is signed in
+    /// with an API key, which has no subscription quotas. It stands in for
+    /// «Cuotas no disponibles para este plan»: no validated response shows
+    /// that a plan has no quotas yet, so the core has no such state.
+    public static let withoutSubscriptionQuotas = Scenario(
+        "withoutSubscriptionQuotas", "Esta sesión no ofrece cuotas de suscripción"
+    ) { stage in
+        await stage.sessionReaders[.codex]?.answer(with: .withoutSubscriptionQuotas)
+        await stage.openPanel()
+    }
+
+    /// «Dato no interpretable»: Claude's 5-hour figure is over 100 and its
+    /// weekly copies contradict each other; Cursor's Other Models is negative.
+    public static let uninterpretable = Scenario("uninterpretable", "Dato no interpretable") { stage in
+        await stage.transport.answer(with: .json(#"""
+        {
+          "five_hour": {"utilization": 140.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [{"kind": "weekly_all", "percent": 80.0, "resets_at": "2026-09-25T09:00:00.000000+00:00", "scope": null}]
+        }
+        """#), for: .claude)
+        await stage.transport.answer(with: .json(#"""
+        {"billingCycleEnd": "1791590400000", "planUsage": {"autoPercentUsed": 18.5, "apiPercentUsed": -3}}
+        """#), for: .cursor)
+        await stage.openPanel()
+    }
+
+    /// «Sin sesión»: no official app is signed in.
+    public static let noSession = Scenario("noSession", "Sin sesión") { stage in
+        await stage.answerEverySession(with: .noSession)
+        await stage.openPanel()
+    }
+
+    /// «Sesión vencida»: every provider rejects its session (401).
+    public static let sessionExpired = Scenario("sessionExpired", "Sesión vencida") { stage in
+        await stage.transport.answer(with: .status(401))
+        await stage.openPanel()
+    }
+
+    /// «Sin acceso a la sesión»: the user denied the Keychain prompt for
+    /// Claude Code's session.
+    public static let sessionAccessDenied = Scenario("sessionAccessDenied", "Sin acceso a la sesión") { stage in
+        await stage.sessionReaders[.claude]?.answer(with: .accessDenied)
+        await stage.openPanel()
+    }
+
+    /// «Sesión incompatible»: every session is stored in an unknown format.
+    public static let incompatibleSession = Scenario("incompatibleSession", "Sesión incompatible") { stage in
+        await stage.answerEverySession(with: .unknownFormat)
+        await stage.openPanel()
+    }
+
+    /// «Respuesta incompatible»: every provider answers in a format the app
+    /// does not understand.
+    public static let incompatibleResponse = Scenario("incompatibleResponse", "Respuesta incompatible") { stage in
+        await stage.transport.answer(with: .json("<html>Sample maintenance page</html>"), for: .claude)
+        await stage.transport.answer(with: .codex(rateLimit: "null"), for: .codex)
+        await stage.transport.answer(with: .json("{}"), for: .cursor)
+        await stage.openPanel()
+    }
+
+    /// Network and server failures with no previous reading: no connection,
+    /// no answer in time and a server error.
+    public static let networkFailures = Scenario("networkFailures", "Fallos de red o del servidor") { stage in
+        await stage.transport.answer(with: .networkError, for: .claude)
+        await stage.transport.answer(with: .timeout, for: .codex)
+        await stage.transport.answer(with: .status(503), for: .cursor)
+        await stage.openPanel()
+    }
+
+    /// Claude refuses the query (403); Codex asks to wait 10 minutes and
+    /// Cursor asks to wait without saying how long (429).
+    public static let refused = Scenario("refused", "Acceso rechazado y demasiadas consultas") { stage in
+        await stage.transport.answer(with: .status(403), for: .claude)
+        await stage.transport.answer(
+            with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "600"], body: Data())), for: .codex
+        )
+        await stage.transport.answer(with: .status(429), for: .cursor)
+        await stage.openPanel()
+    }
+}
+
+/// The fakes behind a scenario's usage core.
+@MainActor
+final class Stage {
+    let clock = ManualClock(Samples.readingMoment)
+    let transport = ControlledTransport()
+    let sessionReaders: [Provider: ControlledSessionReader] = [
+        .claude: ControlledSessionReader(), .codex: ControlledSessionReader(), .cursor: ControlledSessionReader(),
+    ]
+    let core: UsageCore
+
+    init() {
+        core = UsageCore(
+            claudeSessionReader: sessionReaders[.claude]!,
+            codexSessionReader: sessionReaders[.codex]!,
+            cursorSessionReader: sessionReaders[.cursor]!,
+            transport: transport,
+            clock: clock,
+            // Keeps the scenarios' failures out of the system log.
+            log: RecordingLog()
+        )
+    }
+
+    func answerEverySession(with reading: SessionReading) async {
+        for reader in sessionReaders.values {
+            await reader.answer(with: reading)
+        }
+    }
+
+    /// Opens the panel and waits for the queries of `providers` to finish.
+    /// The others may be held by the transport.
+    func openPanel(waitingFor providers: [Provider] = Provider.allCases) async {
+        core.panelOpened()
+        for provider in providers {
+            await core.queriesFinished(of: provider)
+        }
+    }
+}
+
+#endif
