@@ -5,7 +5,8 @@ import UzzyCore
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
-    private let popover = NSPopover()
+    /// Released on quit so AppKit does not `-close` the popover window.
+    private var popover: NSPopover?
     private var eventMonitors: [Any] = []
     private let realCore = UsageCore(
         claudeSessionReader: ClaudeCodeSessionReader(),
@@ -40,15 +41,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let popover = NSPopover()
+        self.popover = popover
         #if DEBUG
-        let content = NSHostingController(rootView: ScenarioPanel(scenarios: scenarios, openSettings: { [weak self] in
+        let content = PanelHostingController(rootView: ScenarioPanel(scenarios: scenarios, openSettings: { [weak self] in
             self?.showSettings()
         }) { [weak self] scenario in
             guard let self else { return }
-            Task { await self.scenarios.show(scenario, panelIsOpen: self.popover.isShown) }
+            Task { await self.scenarios.show(scenario, panelIsOpen: self.popover?.isShown == true) }
         })
         #else
-        let content = NSHostingController(rootView: PanelView(core: realCore, openSettings: { [weak self] in
+        let content = PanelHostingController(rootView: PanelView(core: realCore, openSettings: { [weak self] in
             self?.showSettings()
         }))
         #endif
@@ -58,6 +61,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // apps for an accessory app, and races with the icon's own toggle.
         popover.behavior = .applicationDefined
         popover.delegate = self
+        // Unset, a popover stays on vibrantLight: light mode never picks up
+        // Aqua's glass, and dark mode never applies.
+        adoptSystemAppearance()
+        DistributedNotificationCenter.default.addObserver(
+            self,
+            selector: #selector(systemAppearanceChanged),
+            name: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil
+        )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemAppearanceChanged),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.33percent", accessibilityDescription: Format.appName)
@@ -91,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func togglePanel() {
-        if popover.isShown {
+        if popover?.isShown == true {
             closePanel()
         } else {
             openPanel()
@@ -99,7 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func openPanel() {
-        guard let button = statusItem?.button else { return }
+        guard let popover, let button = statusItem?.button else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate()
         watchWhileOpen()
@@ -146,10 +164,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     /// Closes instantly, like a menu. While a close animation runs the popover
     /// still reports `isShown`, so a quick click on the icon would be lost.
+    /// `close()` is required: `performClose` ends up sending `-close` to the
+    /// popover's window, which the app does not own.
     private func closePanel() {
+        guard let popover, popover.isShown else { return }
         popover.animates = false
-        popover.performClose(nil)
+        popover.close()
         popover.animates = true
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        releasePopover()
+        return .terminateNow
+    }
+
+    /// `close()` hides the panel but leaves its window in `NSApp.windows`.
+    /// Quitting then sends that window `-close`. `_NSPopoverWindow` overrides
+    /// `close` only to log that the app does not own it. `NSWindow`'s own
+    /// implementation unregisters the window, so the sweep never reaches it.
+    private func releasePopover() {
+        guard let popover else { return }
+        popover.animates = false
+        let window = popover.contentViewController?.view.window
+        if popover.isShown {
+            popover.close()
+        }
+        if let window {
+            closeSkippingPopoverOverride(window)
+        }
+        popover.contentViewController = nil
+        self.popover = nil
+    }
+
+    private func closeSkippingPopoverOverride(_ window: NSWindow) {
+        let sel = #selector(NSWindow.close)
+        guard let method = class_getInstanceMethod(NSWindow.self, sel) else { return }
+        typealias CloseIMP = @convention(c) (NSWindow, Selector) -> Void
+        let close = unsafeBitCast(method_getImplementation(method), to: CloseIMP.self)
+        close(window, sel)
     }
 
     private func showSettings() {
@@ -179,9 +231,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         #endif
     }
 
+    func popoverWillShow(_ notification: Notification) {
+        adoptSystemAppearance()
+    }
+
     func popoverDidClose(_ notification: Notification) {
         core.panelClosed()
         eventMonitors.forEach(NSEvent.removeMonitor)
         eventMonitors.removeAll()
+    }
+
+    /// Aqua or Dark Aqua, including their high-contrast variants. `vibrantLight`
+    /// is the popover default and does not follow the system.
+    private func adoptSystemAppearance() {
+        let names: [NSAppearance.Name] = [
+            .aqua,
+            .darkAqua,
+            .accessibilityHighContrastAqua,
+            .accessibilityHighContrastDarkAqua,
+        ]
+        if let name = NSApp.effectiveAppearance.bestMatch(from: names) {
+            popover?.appearance = NSAppearance(named: name)
+        } else {
+            popover?.appearance = NSApp.effectiveAppearance
+        }
+    }
+
+    @objc private func systemAppearanceChanged() {
+        adoptSystemAppearance()
+    }
+}
+
+/// Hosts the panel without painting over the Liquid Glass the popover draws
+/// behind it. The default hosting view is opaque, so light mode reads as a
+/// flat gray slab and the desktop never shows through.
+private final class PanelHostingController<Content: View>: NSHostingController<Content> {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // SwiftUI fills the hosting view. Clearing that fill is what lets the
+        // popover's own glass show through; the layer is left alone so the
+        // system highlight is not blown out.
+        view.wantsLayer = true
+        view.layer?.backgroundColor = .clear
     }
 }

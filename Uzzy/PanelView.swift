@@ -1,6 +1,12 @@
 import SwiftUI
 import UzzyCore
 
+enum PanelLayout {
+    /// Shared by the panel and the debug scenario bar, so the bar cannot
+    /// widen the popover past the cards.
+    static let width: CGFloat = 360
+}
+
 struct PanelView: View {
     let core: UsageCore
     let openSettings: () -> Void
@@ -24,19 +30,20 @@ struct PanelView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 32)
             } else {
-                ScrollView {
-                    // Recomputes the time left until each reset every minute.
-                    TimelineView(.everyMinute) { _ in
-                        VStack(spacing: 8) {
-                            ForEach(core.state.cards, id: \.provider) { card in
-                                CardView(card: card, magnitude: core.state.magnitude, now: core.now())
+                // Recomputes the time left until each reset every minute.
+                // The panel grows with the cards; it does not scroll them.
+                TimelineView(.everyMinute) { _ in
+                    VStack(spacing: 0) {
+                        ForEach(core.state.cards, id: \.provider) { card in
+                            CardView(card: card, magnitude: core.state.magnitude, now: core.now())
+                            if card.provider != core.state.cards.last?.provider {
+                                Divider()
                             }
                         }
-                        .padding([.horizontal, .bottom], 12)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
                 }
-                .frame(maxHeight: 520)
-                .fixedSize(horizontal: false, vertical: true)
             }
 
             Divider()
@@ -74,7 +81,10 @@ struct PanelView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .frame(width: 360)
+        .frame(width: PanelLayout.width)
+        // The popover draws the system's Liquid Glass behind this view. An
+        // opaque fill would cover it, so it would ignore the Appearance setting.
+        .containerBackground(.clear, for: .window)
         .onAppear { core.show(selectedMagnitude) }
         .onChange(of: selectedMagnitude) { _, magnitude in core.show(magnitude) }
     }
@@ -127,10 +137,8 @@ private struct CardView: View {
                 QuotasView(quotas: quotas, magnitude: magnitude, now: now)
             }
         }
-        .padding(14)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
     }
 }
 
