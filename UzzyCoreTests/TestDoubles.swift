@@ -51,13 +51,27 @@ final class ManualClock: WallClock {
     }
 }
 
+/// Returns the sample session, or `reading` when set, and counts the reads.
+/// Reading a real session can show the Keychain prompt.
+actor ControlledSessionReader: SessionReader {
+    private(set) var reads = 0
+    private var reading = SessionReading.session(Samples.session)
+
+    func read() async -> SessionReading {
+        reads += 1
+        return reading
+    }
+
+    func answer(with reading: SessionReading) {
+        self.reading = reading
+    }
+}
+
 /// Answers every request with the sample Claude response, or with `result`
 /// when set. While held, requests wait until the test releases them.
 actor ControlledTransport: HTTPTransport {
     private(set) var requests: [URLRequest] = []
-    private var result = HTTPResult.response(
-        HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.claudeUsageResponse)
-    )
+    private var result = HTTPResult.claudeSample
     private var held = false
     private var heldRequests: [CheckedContinuation<Void, Never>] = []
     private var requestWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
@@ -91,5 +105,17 @@ actor ControlledTransport: HTTPTransport {
     func waitForRequests(_ count: Int) async {
         guard requests.count < count else { return }
         await withCheckedContinuation { requestWaiters.append((count, $0)) }
+    }
+}
+
+extension HTTPResult {
+    /// The sample Claude response, answered with a 200.
+    static let claudeSample = HTTPResult.response(
+        HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.claudeUsageResponse)
+    )
+
+    /// An empty response with `status`.
+    static func status(_ status: Int) -> HTTPResult {
+        .response(HTTPResponse(status: status, headers: [:], body: Data()))
     }
 }
