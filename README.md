@@ -42,6 +42,20 @@ xcodebuild build -scheme Uzzy -destination 'platform=macOS,arch=arm64' -derivedD
 open build/Build/Products/Debug/Uzzy.app
 ```
 
+### Install
+
+To keep Uzzy running day to day, build it in Release and copy it to `/Applications`:
+
+```sh
+xcodebuild build -scheme Uzzy -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+cp -R build/Build/Products/Release/Uzzy.app /Applications/
+open /Applications/Uzzy.app
+```
+
+To open it at login, add it under System Settings → General → Login Items.
+
+Debug builds run as a separate app, «Uzzy Debug» (`com.akacronos.Uzzy.debug`), with an orange menu bar icon. They keep their own settings, so they can run next to the installed copy without touching it. The first time, the Debug build asks for Keychain access again.
+
 ### Debug scenarios
 
 Debug builds add a bar on top of the panel to pick a scenario: the real panel then shows one of its states («Desactualizado», «Sin sesión», «Respuesta incompatible»…) with fictional data, without touching the accounts. The scenarios drive the usage core through the same fakes as the tests. To open the panel straight on one, pass its id (see `UzzyCore/Scenarios.swift`):
