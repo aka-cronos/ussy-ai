@@ -1,3 +1,7 @@
+## Language
+
+Reply to the user in the language they write in. Write everything that lands in the repo or on GitHub in English: code, comments, test names, docs, `CONTEXT.md`, ADRs, commit messages, issues and pull requests. The one exception is the app's user-facing copy, which stays in Spanish.
+
 ## Agent skills
 
 ### Issue tracker
