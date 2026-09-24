@@ -51,7 +51,7 @@ public enum CardContent: Sendable, Equatable {
 }
 
 /// Why a card has no quotas to show, or only stale ones.
-public enum Failure: Sendable, Equatable {
+public enum Failure: Error, Sendable, Equatable {
     /// The official app has no session on this Mac.
     case noSession
     /// The official app's session is of a kind that has no subscription
@@ -59,6 +59,10 @@ public enum Failure: Sendable, Equatable {
     case sessionWithoutSubscriptionQuotas
     /// The user denied access to the session (the Keychain prompt).
     case sessionAccessDenied
+    /// The Keychain or another provider session store could not be read.
+    case sessionStoreUnavailable
+    /// The provider's session store is currently locked.
+    case sessionStoreBusy
     /// The session is stored in a format the app does not know. The
     /// credential is never shown.
     case incompatibleSession
@@ -80,6 +84,8 @@ public enum Failure: Sendable, Equatable {
     /// The provider answered with something the app does not understand, e.g.
     /// because it changed its format. No alternative route is tried.
     case incompatibleResponse
+    /// Cursor sent a billing-cycle reset in an unsupported format.
+    case incompatibleResetFormat
 }
 
 /// A subscription quota, independent of the provider's other quotas.

@@ -229,6 +229,23 @@ private struct FailureMessage: View {
                 title: "Sin acceso a la sesión",
                 detail: "Se denegó el acceso a la sesión de \(provider.officialApp) en el llavero. Pulsa Actualizar para volver a pedirlo."
             )
+        case .sessionStoreUnavailable:
+            if provider == .claude {
+                Message(
+                    title: "Llavero no disponible",
+                    detail: "No se pudo leer la sesión de Claude Code en el llavero. Comprueba que esté desbloqueado y pulsa Actualizar."
+                )
+            } else {
+                Message(
+                    title: "No se pudo leer la sesión",
+                    detail: "No se pudo abrir la sesión de \(provider.officialApp). Comprueba que la app oficial funcione y pulsa Actualizar."
+                )
+            }
+        case .sessionStoreBusy:
+            Message(
+                title: "Sesión ocupada",
+                detail: "La base de datos de \(provider.officialApp) está ocupada. Espera un momento y pulsa Actualizar."
+            )
         case .incompatibleSession:
             Message(
                 title: "Sesión incompatible",
@@ -254,6 +271,11 @@ private struct FailureMessage: View {
             Message(
                 title: "Respuesta incompatible",
                 detail: "\(provider.name) respondió en un formato que \(Format.appName) no reconoce. Puede que haya cambiado su servicio."
+            )
+        case .incompatibleResetFormat:
+            Message(
+                title: "Reinicio de Cursor incompatible",
+                detail: "Cursor envió la fecha de reinicio en un formato que \(Format.appName) no reconoce. Pulsa Actualizar; si continúa, la integración necesita una actualización."
             )
         }
     }

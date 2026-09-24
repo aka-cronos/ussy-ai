@@ -16,15 +16,22 @@ enum Cursor: ProviderAdapter {
         return request
     }
 
-    /// Returns `nil` when the response does not have the expected format.
+    /// Returns an error when the response does not have the expected format.
     ///
     /// Both bags share the billing cycle and its end. `totalPercentUsed`
     /// contradicts the usage the provider shows, so it is never read, and
     /// neither are the amounts or the text messages.
-    static func quotas(from body: Data, readAt moment: Date) -> [QuotaReading]? {
-        guard let response = try? JSONDecoder().decode(Response.self, from: body),
-              let usage = response.planUsage
-        else { return nil }
+    static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure> {
+        let response: Response
+        do {
+            response = try JSONDecoder().decode(Response.self, from: body)
+        } catch DecodingError.typeMismatch(_, let context)
+            where context.codingPath.map(\.stringValue) == ["billingCycleEnd"] {
+            return .failure(.incompatibleResetFormat)
+        } catch {
+            return .failure(.incompatibleResponse)
+        }
+        guard let usage = response.planUsage else { return .failure(.incompatibleResponse) }
         let resets = [response.billingCycleEnd.flatMap(date(fromMilliseconds:))].compactMap { $0 }
         func reading(_ bag: String, _ usedPercent: Double?) -> QuotaReading {
             QuotaReading(
@@ -34,10 +41,10 @@ enum Cursor: ProviderAdapter {
                 readAt: moment
             )
         }
-        return [
+        return .success([
             reading("Cursor Models", usage.autoPercentUsed),
             reading("Other Models", usage.apiPercentUsed),
-        ]
+        ])
     }
 
     /// `billingCycleEnd` is a string of epoch milliseconds.

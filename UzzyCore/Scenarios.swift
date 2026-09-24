@@ -43,7 +43,8 @@ extension Scenario {
     /// visible state of the panel.
     public static let all: [Scenario] = [
         quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
-        uninterpretable, noSession, sessionExpired, sessionAccessDenied, incompatibleSession, incompatibleResponse,
+        uninterpretable, noSession, sessionExpired, sessionAccessDenied, unavailableSessionStores,
+        incompatibleSession, incompatibleResponse, incompatibleCursorReset,
         networkFailures, refused,
     ]
 
@@ -157,6 +158,13 @@ extension Scenario {
         await stage.openPanel()
     }
 
+    /// The Keychain cannot be read, and Cursor's session database is busy.
+    public static let unavailableSessionStores = Scenario("unavailableSessionStores", "Sesiones no disponibles") { stage in
+        await stage.sessionReaders[.claude]?.answer(with: .storeUnavailable)
+        await stage.sessionReaders[.cursor]?.answer(with: .storeBusy)
+        await stage.openPanel()
+    }
+
     /// «Sesión incompatible»: every session is stored in an unknown format.
     public static let incompatibleSession = Scenario("incompatibleSession", "Sesión incompatible") { stage in
         await stage.answerEverySession(with: .unknownFormat)
@@ -169,6 +177,14 @@ extension Scenario {
         await stage.transport.answer(with: .json("<html>Sample maintenance page</html>"), for: .claude)
         await stage.transport.answer(with: .codex(rateLimit: "null"), for: .codex)
         await stage.transport.answer(with: .json("{}"), for: .cursor)
+        await stage.openPanel()
+    }
+
+    /// Cursor sends its billing-cycle end as a number instead of a string.
+    public static let incompatibleCursorReset = Scenario("incompatibleCursorReset", "Reinicio de Cursor incompatible") { stage in
+        await stage.transport.answer(with: .json("""
+            {"billingCycleEnd": 1791590400000, "planUsage": {"autoPercentUsed": 18.5, "apiPercentUsed": 42.75}}
+            """), for: .cursor)
         await stage.openPanel()
     }
 

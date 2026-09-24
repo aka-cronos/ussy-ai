@@ -16,21 +16,21 @@ enum Codex: ProviderAdapter {
         return request
     }
 
-    /// Returns `nil` when the response does not have the expected format.
+    /// Returns an error when the response does not have the expected format.
     ///
     /// Each window is named by its length, never by its position: the
     /// provider may send the weekly window first. Windows of the same length
     /// are copies of one quota, and the reading decides whether they agree.
     /// Credits, spend control, model usage and every identifier are ignored.
-    static func quotas(from body: Data, readAt moment: Date) -> [QuotaReading]? {
-        guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return nil }
+    static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure> {
+        guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return .failure(.incompatibleResponse) }
         let limits = (response.additional_rate_limits ?? []).compactMap { limit in
             limit.limit_name.map { name in readings(of: limit.rate_limit, at: moment) { .limit(name, $0) } }
         }
         let quotas = readings(of: response.rate_limit, at: moment) { $0 } + limits.joined()
         // Nothing says the plan has no quotas, so a response without any
         // window is not understood.
-        return quotas.isEmpty ? nil : quotas
+        return quotas.isEmpty ? .failure(.incompatibleResponse) : .success(quotas)
     }
 
     /// One reading per window length, the shortest first.
