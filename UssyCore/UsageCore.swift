@@ -6,7 +6,16 @@ import Observation
 @MainActor
 @Observable
 public final class UsageCore {
-    public private(set) var state = PanelState(cards: [Card(provider: .claude, content: .loading)])
+    /// Depends on the clock too: a reset that passes changes the state.
+    public var state: PanelState {
+        let now = clock.now()
+        return PanelState(magnitude: magnitude, cards: [
+            Card(provider: .claude, content: claude.content(in: magnitude, at: now)),
+        ])
+    }
+
+    private var magnitude = QuotaMagnitude.used
+    private var claude = ProviderReading.loading
 
     private let claudeSessionReader: any SessionReader
     private let transport: any HTTPTransport
@@ -22,6 +31,11 @@ public final class UsageCore {
         clock.now()
     }
 
+    /// Expresses every quota as used or remaining quota.
+    public func show(_ magnitude: QuotaMagnitude) {
+        self.magnitude = magnitude
+    }
+
     public func panelOpened() async {
         await refreshClaude()
     }
@@ -32,14 +46,24 @@ public final class UsageCore {
               response.status == 200,
               let quotas = Claude.quotas(from: response.body, readAt: clock.now())
         else {
-            show(.queryFailed, on: .claude)
+            claude = .queryFailed
             return
         }
-        show(.quotas(quotas), on: .claude)
+        claude = .quotas(quotas)
     }
+}
 
-    private func show(_ content: CardContent, on provider: Provider) {
-        guard let index = state.cards.firstIndex(where: { $0.provider == provider }) else { return }
-        state.cards[index].content = content
+/// What the core last learned from a provider.
+private enum ProviderReading {
+    case loading
+    case quotas([QuotaReading])
+    case queryFailed
+
+    func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
+        switch self {
+        case .loading: .loading
+        case .quotas(let quotas): .quotas(quotas.map { $0.quota(in: magnitude, at: now) })
+        case .queryFailed: .queryFailed
+        }
     }
 }
