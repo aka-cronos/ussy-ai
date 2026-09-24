@@ -76,6 +76,46 @@ struct ProviderFailureTests {
         #expect(quotas.allSatisfy { !$0.isStale && $0.readAt == clock.now() })
     }
 
+    @Test func aResetThatPassesWhileQueriesFailIsPendingConfirmationAndStale() async {
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .networkError)
+        clock.move(to: fiveHourReset)
+        await core.queriesFinished()
+
+        guard case .stale(let quotas, failure: .offline) = claudeContent() else {
+            Issue.record("Expected the stale reading")
+            return
+        }
+        #expect(quotas.first == Quota(
+            period: .fiveHours,
+            value: .percent(35, calculated: false),
+            reset: .pendingConfirmation,
+            readAt: Samples.readingMoment,
+            isStale: true
+        ))
+    }
+
+    /// The rejected session is still the same account's, so what it last
+    /// read stays visible next to the reason.
+    @Test(arguments: [(401, Failure.sessionExpired), (403, .accessRefused)])
+    func aRejectionOnActualizarKeepsThePreviousReadingAsStale(status: Int, failure: Failure) async {
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .status(status))
+        core.refresh()
+        await core.queriesFinished()
+
+        guard case .stale(let quotas, let shown) = claudeContent() else {
+            Issue.record("Expected the stale reading")
+            return
+        }
+        #expect(shown == failure)
+        #expect(quotas.allSatisfy { $0.isStale && $0.readAt == Samples.readingMoment })
+    }
+
     @Test func aSessionFailureDoesNotKeepThePreviousReading() async {
         let sessionReader = ControlledSessionReader()
         let core = UsageCore(claudeSessionReader: sessionReader, transport: transport, clock: clock, log: log)
