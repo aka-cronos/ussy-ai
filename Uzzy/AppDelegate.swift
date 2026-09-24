@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import UssyCore
+import UzzyCore
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.delegate = self
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.33percent", accessibilityDescription: "UssyAi")
+        item.button?.image = NSImage(systemSymbolName: "gauge.with.dots.needle.33percent", accessibilityDescription: Format.appName)
         item.button?.target = self
         item.button?.action = #selector(togglePanel)
         statusItem = item

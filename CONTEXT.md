@@ -1,6 +1,6 @@
-# UssyAi
+# Uzzy
 
-UssyAi shows the subscription quotas of AI services and when they reset.
+Uzzy shows the subscription quotas of AI services and when they reset.
 
 ## Language
 
