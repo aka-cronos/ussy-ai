@@ -26,6 +26,18 @@ struct PanelView: View {
             }
             .frame(maxHeight: 520)
             .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+            HStack {
+                Spacer()
+                // Quotas live only in memory, so quitting has nothing to save.
+                Button("Salir") { NSApp.terminate(nil) }
+                    .accessibilityLabel("Salir de UssyAi")
+                    .accessibilityInputLabels(["Salir", "Salir de UssyAi"])
+                    .help("Salir de UssyAi (⌘Q)")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
         .frame(width: 360)
     }
