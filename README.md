@@ -37,13 +37,23 @@ xcodebuild build -scheme Uzzy -destination 'platform=macOS,arch=arm64' -derivedD
 open build/Build/Products/Debug/Uzzy.app
 ```
 
+### Debug scenarios
+
+Debug builds add a bar on top of the panel to pick a scenario: the real panel then shows one of its states («Desactualizado», «Sin sesión», «Respuesta incompatible»…) with fictional data, without touching the accounts. The scenarios drive the usage core through the same fakes as the tests. To open the panel straight on one, pass its id (see `UzzyCore/Scenarios.swift`):
+
+```sh
+build/Build/Products/Debug/Uzzy.app/Contents/MacOS/Uzzy -scenario stale
+```
+
+Release builds leave the scenarios, the fakes and the sample responses out.
+
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `Uzzy/` | App: menu bar icon, panel and SwiftUI presentation. |
-| `UzzyCore/` | Usage core: panel state, provider adapters and injectable dependencies. |
-| `UzzyCoreTests/` | Tests through the usage core, with fake dependencies. |
+| `UzzyCore/` | Usage core: panel state, provider adapters and injectable dependencies. In Debug builds, also the fake dependencies, the sample responses and the debug scenarios. |
+| `UzzyCoreTests/` | Tests through the usage core, with the fake dependencies. |
 | `CONTEXT.md` | Domain vocabulary (used quota, reset, last valid reading…). |
 | `docs/agents/` | Agent conventions: issues, triage labels, domain docs. |
 | `prototypes/` | Throwaway panel prototypes (HTML, fictional data). |

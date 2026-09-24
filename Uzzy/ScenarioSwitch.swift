@@ -1,0 +1,68 @@
+// Debug scenarios: never in a Release build.
+#if DEBUG
+import SwiftUI
+import UzzyCore
+
+/// Replaces the real accounts in the panel with a debug scenario, to review
+/// one of its states by eye without touching the accounts.
+@Observable
+final class ScenarioSwitch {
+    /// `nil` while the panel shows the real accounts.
+    private(set) var scenario: Scenario?
+    /// The core the panel shows: the scenario's, or the real one.
+    private(set) var core: UsageCore
+    private let realCore: UsageCore
+
+    init(realCore: UsageCore) {
+        self.realCore = realCore
+        core = realCore
+    }
+
+    /// Shows `scenario`, or the real accounts when `nil`. A scenario starts
+    /// with its panel open.
+    func show(_ scenario: Scenario?, panelIsOpen: Bool) async {
+        guard scenario != self.scenario else { return }
+        self.scenario = scenario
+        core.panelClosed()
+        let next = if let scenario { await scenario.start() } else { realCore }
+        // Another choice came in while this scenario was starting.
+        guard self.scenario == scenario else { return }
+        core = next
+        // Going back to the real accounts never suspends, so `panelIsOpen`
+        // still holds here.
+        if scenario == nil, panelIsOpen {
+            realCore.panelOpened()
+        }
+    }
+}
+
+/// The panel with a bar on top to choose the scenario it shows.
+struct ScenarioPanel: View {
+    let scenarios: ScenarioSwitch
+    let choose: @MainActor (Scenario?) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Picker("Escenario", selection: Binding(get: { scenarios.scenario }, set: choose)) {
+                    Text("Cuentas reales").tag(Scenario?.none)
+                    Divider()
+                    ForEach(Scenario.all) { scenario in
+                        Text(scenario.name).tag(Optional(scenario))
+                    }
+                }
+                .pickerStyle(.menu)
+                .fixedSize()
+                Spacer()
+                if scenarios.scenario != nil {
+                    Text("Datos ficticios").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.orange.opacity(0.12))
+            PanelView(core: scenarios.core)
+        }
+    }
+}
+#endif
