@@ -1,0 +1,56 @@
+name: Provider API changed
+description: A provider's card shows «Respuesta incompatible», wrong quotas or wrong resets.
+labels: [needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Uzzy reads internal, undocumented endpoints that can change at any time.
+        Never paste real tokens, emails, account IDs or unredacted responses. If you share a response, keep only its shape and replace every value with a placeholder.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Claude
+        - Codex
+        - Cursor
+    validations:
+      required: true
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What the card shows
+      description: The state or values you see, and what the provider's own app or website shows for the same quota.
+    validations:
+      required: true
+  - type: input
+    id: provider-app-version
+    attributes:
+      label: Provider app version
+      description: e.g. the Claude Code, Codex CLI or Cursor version whose session Uzzy reads.
+    validations:
+      required: true
+  - type: input
+    id: plan
+    attributes:
+      label: Subscription plan
+      description: e.g. Claude Pro, ChatGPT Plus, Cursor Pro.
+  - type: input
+    id: first-seen
+    attributes:
+      label: First seen
+      description: When it started, if you know.
+  - type: input
+    id: commit
+    attributes:
+      label: Uzzy commit
+      description: Output of `git rev-parse --short HEAD` in the checkout you built.
+    validations:
+      required: true
+  - type: textarea
+    id: sanitized-shape
+    attributes:
+      label: Sanitized response shape (optional)
+      description: Field names and types only, with every value replaced.
+      render: json
