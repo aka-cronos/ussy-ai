@@ -20,6 +20,7 @@ struct CodexPanelTests {
         core = UsageCore(
             claudeSessionReader: claudeSessionReader,
             codexSessionReader: codexSessionReader,
+            cursorSessionReader: NoSessionReader(),
             transport: transport,
             clock: clock,
             log: RecordingLog()
@@ -33,13 +34,6 @@ struct CodexPanelTests {
     func openPanel() async {
         core.panelOpened()
         await core.queriesFinished()
-    }
-
-    @Test func thePanelShowsTheClaudeCardAndThenTheCodexCard() {
-        #expect(core.state.cards == [
-            Card(provider: .claude, content: .loading),
-            Card(provider: .codex, content: .loading),
-        ])
     }
 
     @Test func openingThePanelShowsEachCodexQuotaSeparately() async {

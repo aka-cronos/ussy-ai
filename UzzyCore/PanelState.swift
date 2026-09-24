@@ -3,6 +3,7 @@ import Foundation
 public enum Provider: Sendable, Hashable, CaseIterable {
     case claude
     case codex
+    case cursor
 }
 
 public struct PanelState: Sendable, Equatable {
@@ -106,8 +107,10 @@ public enum QuotaPeriod: Sendable, Hashable {
     case weekly
     /// A period of another length, named by that length.
     case lasting(seconds: Int)
+    /// The subscription's billing cycle, as long as the provider says.
+    case billingCycle
     /// A limit the provider sends separately and names, e.g. of a single
-    /// model ("Sonnet"), over `period`.
+    /// model ("Sonnet") or of a bag of models ("Cursor Models"), over `period`.
     indirect case limit(String, QuotaPeriod)
 }
 
