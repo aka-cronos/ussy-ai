@@ -28,6 +28,10 @@ _Avoid_: Current quota (when it could not be refreshed), another account's data.
 The interval a quota's usage and limit belong to. Quotas with different periods are independent even when they belong to the same provider.
 _Avoid_: Calendar month (when it is a billing cycle), combined period.
 
+**Quota bag**:
+A share of a subscription the provider names and limits on its own, e.g. Cursor's «Cursor Models» and «Other Models» within one billing cycle. Bags of the same period are still separate quotas.
+_Avoid_: Total, combined quota.
+
 **Calculated value**:
 A quota value derived from other valid data of that same quota, account, unit and period, rather than reported directly by the provider.
 _Avoid_: Provider-reported value (when it is calculated), estimate (for an exact calculation).

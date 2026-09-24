@@ -15,6 +15,7 @@ struct QuotaPresentationTests {
         let core = UsageCore(
             claudeSessionReader: SampleSessionReader(),
             codexSessionReader: NoSessionReader(),
+            cursorSessionReader: NoSessionReader(),
             transport: SampleTransport(claudeResponse: Data(claudeResponse.utf8)),
             clock: clock ?? FixedClock(readingMoment)
         )

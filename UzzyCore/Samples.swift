@@ -60,6 +60,35 @@ public enum Samples {
       "rate_limit_reset_credits": {"available_count": 0, "applicable_available_count": 0}
     }
     """#.utf8)
+
+    /// Cursor's `POST /aiserver.v1.DashboardService/GetCurrentPeriodUsage`.
+    /// The billing cycle runs from 2026-09-10 to 2026-10-10 (UTC). Includes
+    /// fields that are ignored: `totalPercentUsed`, which contradicts the
+    /// real usage, the amounts in cents and the text messages.
+    public static let cursorUsageResponse = Data(#"""
+    {
+      "billingCycleStart": "1788998400000",
+      "billingCycleEnd": "1791590400000",
+      "planUsage": {
+        "totalSpend": 2800,
+        "includedSpend": 2800,
+        "remaining": 17200,
+        "limit": 20000,
+        "remainingBonus": false,
+        "bonusTooltip": "Sample bonus text",
+        "autoPercentUsed": 18.5,
+        "apiPercentUsed": 42.75,
+        "totalPercentUsed": 3.1
+      },
+      "spendLimitUsage": {"limitType": "user"},
+      "displayThreshold": 50,
+      "enabled": true,
+      "displayMessage": "You've used 14% of your included usage",
+      "autoModelSelectedDisplayMessage": "Sample message",
+      "namedModelSelectedDisplayMessage": "Sample message",
+      "autoBucketModels": ["sample-model"]
+    }
+    """#.utf8)
 }
 
 public struct SampleSessionReader: SessionReader {
@@ -76,15 +105,25 @@ public actor SampleTransport: HTTPTransport {
     public private(set) var requests: [URLRequest] = []
     private let claudeResponse: Data
     private let codexResponse: Data
+    private let cursorResponse: Data
 
-    public init(claudeResponse: Data = Samples.claudeUsageResponse, codexResponse: Data = Samples.codexUsageResponse) {
+    public init(
+        claudeResponse: Data = Samples.claudeUsageResponse,
+        codexResponse: Data = Samples.codexUsageResponse,
+        cursorResponse: Data = Samples.cursorUsageResponse
+    ) {
         self.claudeResponse = claudeResponse
         self.codexResponse = codexResponse
+        self.cursorResponse = cursorResponse
     }
 
     public func send(_ request: URLRequest) async -> HTTPResult {
         requests.append(request)
-        let body = request.url?.host == "chatgpt.com" ? codexResponse : claudeResponse
+        let body = switch request.url?.host {
+        case "chatgpt.com": codexResponse
+        case "api2.cursor.sh": cursorResponse
+        default: claudeResponse
+        }
         return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: body))
     }
 }
