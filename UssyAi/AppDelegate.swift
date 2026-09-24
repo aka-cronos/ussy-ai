@@ -8,9 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
     private var eventMonitors: [Any] = []
     private let core = UsageCore(
-        claudeSessionReader: SampleSessionReader(),
-        transport: SampleTransport(claudeResponse: Samples.claudeUsageResponse),
-        clock: FixedClock(Samples.readingMoment)
+        claudeSessionReader: ClaudeCodeSessionReader(),
+        transport: URLSessionTransport(),
+        clock: SystemClock()
     )
 
     static func main() {
