@@ -11,11 +11,19 @@ public final class UsageCore {
         let now = clock.now()
         return PanelState(magnitude: magnitude, cards: [
             Card(provider: .claude, content: claude.content(in: magnitude, at: now)),
-        ])
+        ], isQuerying: claudeQuery != nil)
     }
+
+    /// How often providers are queried while the panel is open. Opening the
+    /// panel does not query a provider whose reading is younger than this.
+    nonisolated static let refreshInterval: TimeInterval = 5 * 60
 
     private var magnitude = QuotaMagnitude.used
     private var claude = ProviderReading.loading
+    private var claudeQuery: Task<Void, Never>?
+    /// Identifies the only scheduled query that may still run. `nil` while
+    /// the panel is closed.
+    @ObservationIgnored private var cadence: UUID?
 
     private let claudeSessionReader: any SessionReader
     private let transport: any HTTPTransport
@@ -36,20 +44,64 @@ public final class UsageCore {
         self.magnitude = magnitude
     }
 
-    public func panelOpened() async {
-        await refreshClaude()
+    public func panelOpened() {
+        if !claude.isFresh(at: clock.now()) {
+            queryClaude()
+        }
+        scheduleNextQuery()
     }
 
-    private func refreshClaude() async {
+    /// The Actualizar button: queries even when the reading is fresh.
+    public func refresh() {
+        queryClaude()
+    }
+
+    /// Queries on waking from sleep while the panel is open, and restarts the
+    /// cadence from then.
+    public func systemWoke() {
+        guard cadence != nil else { return }
+        queryClaude()
+        scheduleNextQuery()
+    }
+
+    /// Stops scheduling queries. A query in flight still finishes.
+    public func panelClosed() {
+        cadence = nil
+    }
+
+    /// Returns once no query is in flight.
+    public func queriesFinished() async {
+        await claudeQuery?.value
+    }
+
+    /// Replaces any query scheduled before.
+    private func scheduleNextQuery() {
+        let cadence = UUID()
+        self.cadence = cadence
+        clock.schedule(at: clock.now().addingTimeInterval(Self.refreshInterval)) { [weak self] in
+            guard let self, self.cadence == cadence else { return }
+            queryClaude()
+            scheduleNextQuery()
+        }
+    }
+
+    /// Never two queries of the same provider at once: a repeated request
+    /// joins the one in flight.
+    private func queryClaude() {
+        guard claudeQuery == nil else { return }
+        claudeQuery = Task {
+            claude = await readClaude()
+            claudeQuery = nil
+        }
+    }
+
+    private func readClaude() async -> ProviderReading {
         guard case .session(let session) = await claudeSessionReader.read(),
               case .response(let response) = await transport.send(Claude.request(accessToken: session.accessToken)),
               response.status == 200,
               let quotas = Claude.quotas(from: response.body, readAt: clock.now())
-        else {
-            claude = .queryFailed
-            return
-        }
-        claude = .quotas(quotas)
+        else { return .queryFailed }
+        return .quotas(quotas)
     }
 }
 
@@ -58,6 +110,11 @@ private enum ProviderReading {
     case loading
     case quotas([QuotaReading])
     case queryFailed
+
+    func isFresh(at now: Date) -> Bool {
+        guard case .quotas(let quotas) = self, let readAt = quotas.map(\.readAt).min() else { return false }
+        return now.timeIntervalSince(readAt) < UsageCore.refreshInterval
+    }
 
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
         switch self {

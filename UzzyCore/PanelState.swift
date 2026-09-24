@@ -8,10 +8,14 @@ public struct PanelState: Sendable, Equatable {
     /// The magnitude every quota value in the panel is expressed in.
     public var magnitude: QuotaMagnitude
     public var cards: [Card]
+    /// A query is in flight. Each card still changes as soon as its own
+    /// result arrives.
+    public var isQuerying: Bool
 
-    public init(magnitude: QuotaMagnitude, cards: [Card]) {
+    public init(magnitude: QuotaMagnitude, cards: [Card], isQuerying: Bool = false) {
         self.magnitude = magnitude
         self.cards = cards
+        self.isQuerying = isQuerying
     }
 }
 

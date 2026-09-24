@@ -49,4 +49,6 @@ public protocol HTTPTransport: Sendable {
 
 public protocol WallClock: Sendable {
     func now() -> Date
+    /// Runs `action` once the clock reaches `deadline`.
+    func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void)
 }

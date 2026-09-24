@@ -34,6 +34,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         item.button?.target = self
         item.button?.action = #selector(togglePanel)
         statusItem = item
+
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(systemDidWake), name: NSWorkspace.didWakeNotification, object: nil
+        )
+    }
+
+    @objc private func systemDidWake() {
+        core.systemWoke()
     }
 
     @objc private func togglePanel() {
@@ -49,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate()
         watchWhileOpen()
-        Task { await core.panelOpened() }
+        core.panelOpened()
     }
 
     /// Closes the panel like a macOS menu: on Escape or on a click in another app.
@@ -94,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        core.panelClosed()
         eventMonitors.forEach(NSEvent.removeMonitor)
         eventMonitors.removeAll()
     }
