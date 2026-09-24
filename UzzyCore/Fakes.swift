@@ -112,16 +112,40 @@ public final class ManualClock: WallClock {
 public actor ControlledSessionReader: SessionReader {
     public private(set) var reads = 0
     private var reading = SessionReading.session(Samples.session)
+    private var held = false
+    private var heldReads: [CheckedContinuation<Void, Never>] = []
+    private var readWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     public init() {}
 
     public func read() async -> SessionReading {
         reads += 1
+        let arrived = readWaiters.filter { $0.count <= reads }
+        readWaiters.removeAll { $0.count <= reads }
+        arrived.forEach { $0.continuation.resume() }
+        if held {
+            await withCheckedContinuation { heldReads.append($0) }
+        }
         return reading
     }
 
     public func answer(with reading: SessionReading) {
         self.reading = reading
+    }
+
+    public func hold() {
+        held = true
+    }
+
+    public func release() {
+        held = false
+        heldReads.forEach { $0.resume() }
+        heldReads.removeAll()
+    }
+
+    public func waitForReads(_ count: Int) async {
+        guard reads < count else { return }
+        await withCheckedContinuation { readWaiters.append((count, $0)) }
     }
 }
 

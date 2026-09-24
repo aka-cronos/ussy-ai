@@ -11,9 +11,13 @@ public final class UsageCore {
         let now = clock.now()
         return PanelState(
             magnitude: magnitude,
-            cards: providers.map { Card(provider: $0.provider, content: $0.content(in: magnitude, at: now)) },
-            isQuerying: providers.contains(where: \.isQuerying)
+            cards: providers.filter(\.isEnabled).map { Card(provider: $0.provider, content: $0.content(in: magnitude, at: now)) },
+            isQuerying: providers.contains { $0.isEnabled && $0.isQuerying }
         )
+    }
+
+    public var enabledProviders: Set<Provider> {
+        Set(providers.filter(\.isEnabled).map(\.provider))
     }
 
     /// How often providers are queried while the panel is open. Opening the
@@ -36,14 +40,18 @@ public final class UsageCore {
         transport: any HTTPTransport,
         clock: any WallClock,
         log: any EventLog = SystemLog(),
-        initialMagnitude: QuotaMagnitude = .used
+        initialMagnitude: QuotaMagnitude = .used,
+        initialEnabledProviders: Set<Provider> = Set(Provider.allCases)
     ) {
         self.clock = clock
         magnitude = initialMagnitude
         providers = [
-            ProviderRefresh(Claude.self, sessionReader: claudeSessionReader, transport: transport, clock: clock, log: log),
-            ProviderRefresh(Codex.self, sessionReader: codexSessionReader, transport: transport, clock: clock, log: log),
-            ProviderRefresh(Cursor.self, sessionReader: cursorSessionReader, transport: transport, clock: clock, log: log),
+            ProviderRefresh(Claude.self, sessionReader: claudeSessionReader, transport: transport, clock: clock, log: log,
+                            isEnabled: initialEnabledProviders.contains(.claude)),
+            ProviderRefresh(Codex.self, sessionReader: codexSessionReader, transport: transport, clock: clock, log: log,
+                            isEnabled: initialEnabledProviders.contains(.codex)),
+            ProviderRefresh(Cursor.self, sessionReader: cursorSessionReader, transport: transport, clock: clock, log: log,
+                            isEnabled: initialEnabledProviders.contains(.cursor)),
         ]
     }
 
@@ -54,6 +62,11 @@ public final class UsageCore {
     /// Expresses every quota as used or remaining quota.
     public func show(_ magnitude: QuotaMagnitude) {
         self.magnitude = magnitude
+    }
+
+    /// A disabled provider has neither a card nor session or network work.
+    public func setEnabled(_ enabled: Bool, for provider: Provider) {
+        providers.first(where: { $0.provider == provider })?.setEnabled(enabled)
     }
 
     /// Reads the sessions again, which may show the Keychain prompt: opening
