@@ -5,6 +5,11 @@ import UzzyCore
 enum Format {
     private static let locale = Locale(identifier: "es_ES")
 
+    /// The product name, from the bundle's display name so a rename touches only the build settings.
+    static let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+        ?? ProcessInfo.processInfo.processName
+    static let quitApp = "Salir de \(appName)"
+
     static func percent(_ value: Double) -> String {
         "\(value.formatted(.number.precision(.fractionLength(0...1)).locale(locale))) %"
     }

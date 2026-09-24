@@ -8,7 +8,7 @@ struct PanelView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Uzzy").font(.headline)
+                    Text(Format.appName).font(.headline)
                     Text("Cuotas de suscripción").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -43,9 +43,9 @@ struct PanelView: View {
                 Spacer()
                 // Quotas live only in memory, so quitting has nothing to save.
                 Button("Salir") { NSApp.terminate(nil) }
-                    .accessibilityLabel("Salir de Uzzy")
-                    .accessibilityInputLabels(["Salir", "Salir de Uzzy"])
-                    .help("Salir de Uzzy (⌘Q)")
+                    .accessibilityLabel(Format.quitApp)
+                    .accessibilityInputLabels(["Salir", Format.quitApp])
+                    .help("\(Format.quitApp) (⌘Q)")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
