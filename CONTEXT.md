@@ -37,9 +37,9 @@ The sign-in an official app (Claude Code, Codex CLI, Cursor) keeps on this Mac, 
 _Avoid_: Login, account (the account is the identity behind a session), the 5-hour quota period.
 
 **Account**:
-The provider identity behind a session, e.g. Claude Code's account UUID. A last valid reading belongs to exactly one account and is never shown for another.
+The provider identity behind a session, e.g. Claude Code's account UUID. Every last valid reading belongs to the account whose session produced it.
 _Avoid_: User, profile, session (the session is how Uzzy reaches the account).
 
 **Uncertain identity**:
-A session whose account cannot be verified, e.g. because its identity is missing. No previous reading is shown for it, since it cannot be attributed.
+The state of a session whose account cannot be verified, e.g. because its identity is missing.
 _Avoid_: Unknown account (as if it were a distinct account), anonymous session.
