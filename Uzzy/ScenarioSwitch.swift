@@ -44,7 +44,7 @@ struct ScenarioPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 8) {
                 Picker("Escenario", selection: Binding(get: { scenarios.scenario }, set: choose)) {
                     Text("Cuentas reales").tag(Scenario?.none)
                     Divider()
@@ -53,18 +53,23 @@ struct ScenarioPanel: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .fixedSize()
-                Spacer()
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if scenarios.scenario != nil {
-                    Text("Datos ficticios").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                    Text("Datos ficticios")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(.orange.opacity(0.12))
             PanelView(core: scenarios.core, openSettings: openSettings)
                 .id(ObjectIdentifier(scenarios.core))
         }
+        .frame(width: PanelLayout.width, alignment: .top)
+        .containerBackground(.clear, for: .window)
     }
 }
 #endif
