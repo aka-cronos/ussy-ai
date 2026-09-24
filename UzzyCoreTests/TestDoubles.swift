@@ -79,7 +79,7 @@ struct NoSessionReader: SessionReader {
 /// test releases them.
 actor ControlledTransport: HTTPTransport {
     private(set) var requests: [URLRequest] = []
-    private var results: [Provider: HTTPResult] = [.claude: .claudeSample, .codex: .codexSample]
+    private var results: [Provider: HTTPResult] = [.claude: .claudeSample, .codex: .codexSample, .cursor: .cursorSample]
     private var held: Set<Provider> = []
     private var heldRequests: [CheckedContinuation<Void, Never>] = []
     private var requestWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
@@ -132,6 +132,7 @@ extension Provider {
         switch request.url?.host {
         case "api.anthropic.com": self = .claude
         case "chatgpt.com": self = .codex
+        case "api2.cursor.sh": self = .cursor
         default: return nil
         }
     }
@@ -147,6 +148,16 @@ extension HTTPResult {
     static let codexSample = HTTPResult.response(
         HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.codexUsageResponse)
     )
+
+    /// The sample Cursor response, answered with a 200.
+    static let cursorSample = HTTPResult.response(
+        HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Samples.cursorUsageResponse)
+    )
+
+    /// A Cursor response, answered with a 200, with the given body.
+    static func cursor(_ body: String) -> HTTPResult {
+        .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
+    }
 
     /// A Codex response, answered with a 200, with the given `rate_limit`
     /// and `additional_rate_limits` JSON.

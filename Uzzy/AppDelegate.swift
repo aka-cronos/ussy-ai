@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let core = UsageCore(
         claudeSessionReader: ClaudeCodeSessionReader(),
         codexSessionReader: CodexCLISessionReader(),
+        cursorSessionReader: CursorSessionReader(),
         transport: URLSessionTransport(),
         clock: SystemClock()
     )

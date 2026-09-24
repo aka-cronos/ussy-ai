@@ -10,6 +10,7 @@ struct ClaudePanelTests {
         UsageCore(
             claudeSessionReader: SampleSessionReader(),
             codexSessionReader: NoSessionReader(),
+            cursorSessionReader: NoSessionReader(),
             transport: transport,
             clock: FixedClock(readingMoment)
         )

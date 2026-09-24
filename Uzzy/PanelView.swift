@@ -244,6 +244,7 @@ private extension QuotaPeriod {
         case .fiveHours: "5 horas"
         case .weekly: "Semanal"
         case .lasting(let seconds): Format.duration(seconds: seconds)
+        case .billingCycle: "Ciclo de facturación"
         case .limit(let name, let period): "\(period.name) · \(name)"
         }
     }
@@ -263,6 +264,7 @@ private extension Provider {
         switch self {
         case .claude: "Claude"
         case .codex: "Codex"
+        case .cursor: "Cursor"
         }
     }
 
@@ -271,6 +273,7 @@ private extension Provider {
         switch self {
         case .claude: "Claude Code"
         case .codex: "Codex CLI"
+        case .cursor: "Cursor"
         }
     }
 }

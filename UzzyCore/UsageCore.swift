@@ -32,6 +32,7 @@ public final class UsageCore {
     public init(
         claudeSessionReader: any SessionReader,
         codexSessionReader: any SessionReader,
+        cursorSessionReader: any SessionReader,
         transport: any HTTPTransport,
         clock: any WallClock,
         log: any EventLog = SystemLog()
@@ -40,6 +41,7 @@ public final class UsageCore {
         providers = [
             ProviderRefresh(Claude.self, sessionReader: claudeSessionReader, transport: transport, clock: clock, log: log),
             ProviderRefresh(Codex.self, sessionReader: codexSessionReader, transport: transport, clock: clock, log: log),
+            ProviderRefresh(Cursor.self, sessionReader: cursorSessionReader, transport: transport, clock: clock, log: log),
         ]
     }
 

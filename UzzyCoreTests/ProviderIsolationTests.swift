@@ -19,6 +19,7 @@ struct ProviderIsolationTests {
         core = UsageCore(
             claudeSessionReader: claudeSessionReader,
             codexSessionReader: codexSessionReader,
+            cursorSessionReader: NoSessionReader(),
             transport: transport,
             clock: clock,
             log: log
