@@ -225,12 +225,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
     @objc func showSettings(_ sender: Any?) {
         core.panelClosed()
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 310),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: 0),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = Format.settings
-            window.contentViewController = NSHostingController(rootView: SettingsView { [weak self] provider, enabled in
+            let content = NSHostingController(rootView: SettingsView { [weak self] provider, enabled in
                 self?.setProviderEnabled(enabled, for: provider)
             })
+            // The window takes the form's height, so no row is clipped.
+            content.sizingOptions = [.preferredContentSize]
+            window.contentViewController = content
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window
