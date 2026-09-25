@@ -265,6 +265,7 @@ final class ProviderRefresh {
         case .response(let received): response = received
         case .networkError: return .failed(.offline)
         case .timeout: return .failed(.timedOut)
+        case .responseTooLarge: return .failed(.responseTooLarge)
         }
         switch response.status {
         case 200:
