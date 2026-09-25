@@ -17,7 +17,16 @@ struct SettingsView: View {
             Section("Cuotas") {
                 let title = "Porcentaje en las tarjetas"
                 let description = "Muestra cuánto has usado de cada límite o cuánto te queda hasta el reinicio."
-                LabeledContent {
+                // Laid out by hand: a form row aligns its control with the
+                // title's baseline, which lifts a segmented control above it.
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                        Text(description)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                     // The hidden title still names the control for VoiceOver.
                     Picker(title, selection: $selectedMagnitude) {
                         // The same words as the suffix after each card's figure.
@@ -28,8 +37,6 @@ struct SettingsView: View {
                     .labelsHidden()
                     .fixedSize()
                     .accessibilityHint(description)
-                } label: {
-                    RowLabel(title: title, description: description)
                 }
             }
             // The rows follow the panel's card order; #68 makes them reorderable.
