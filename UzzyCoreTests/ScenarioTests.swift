@@ -163,6 +163,26 @@ struct ScenarioTests {
         ])
     }
 
+    @Test func longContentAddsLongNamedLimitsNextToAStaleCard() async {
+        let core = await Scenario.longContent.start()
+        let cards = contents(of: core)
+        let longNames = Scenario.longLimitNames
+
+        #expect(quotas(cards[.claude]).map(\.period) == [
+            .fiveHours, .weekly, .limit("Sonnet", .weekly), .limit("Opus", .weekly),
+            .limit(longNames[0], .weekly), .limit(longNames[1], .weekly),
+        ])
+        let codexLimits = (["Sample-Model"] + longNames).flatMap {
+            [QuotaPeriod.limit($0, .fiveHours), .limit($0, .weekly)]
+        }
+        #expect(quotas(cards[.codex]).map(\.period) == [.fiveHours, .weekly] + codexLimits)
+        guard case .stale(let cursor, .timedOut) = cards[.cursor] else {
+            Issue.record("Not stale: \(String(describing: cards[.cursor]))")
+            return
+        }
+        #expect(cursor.allSatisfy { $0.isStale })
+    }
+
     /// The real panel opens its core again every time it is shown.
     @Test(arguments: Scenario.all)
     func reopeningThePanelKeepsShowingTheScenario(_ scenario: Scenario) async {
