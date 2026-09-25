@@ -55,6 +55,21 @@ public protocol HTTPTransport: Sendable {
 
 public protocol WallClock: Sendable {
     func now() -> Date
-    /// Runs `action` once the clock reaches `deadline`.
-    func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void)
+    /// Runs `action` once the clock reaches `deadline`, unless the returned
+    /// work is cancelled on the main actor first.
+    func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) -> ScheduledWork
+}
+
+/// Work a clock has scheduled. Once cancelled, its action never runs:
+/// cancelling never runs it early.
+public struct ScheduledWork: Sendable {
+    private let onCancel: @Sendable () -> Void
+
+    public init(onCancel: @escaping @Sendable () -> Void) {
+        self.onCancel = onCancel
+    }
+
+    public func cancel() {
+        onCancel()
+    }
 }

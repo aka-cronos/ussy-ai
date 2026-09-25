@@ -229,6 +229,52 @@ struct ProviderFailureTests {
         #expect(await requestTimes(over: 31) == [30])
     }
 
+    /// A valid reading, or a failure not worth retrying, ends the wait.
+    @Test(arguments: [
+        HTTPResult.claudeSample,
+        .response(HTTPResponse(status: 200, headers: [:], body: Data("<html></html>".utf8))),
+    ])
+    func anAnswerThatEndsTheWaitOnActualizarRetiresTheRetryOfTheEarlierFailure(result: HTTPResult) async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        clock.advance(by: 5)
+        await transport.answer(with: result)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await requestTimes(over: refreshInterval - 6) == [])
+    }
+
+    @Test func aValidReadingOnActualizarRetiresTheScheduledRetry() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .claudeSample)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(clock.scheduledDeadlines == [Samples.readingMoment.addingTimeInterval(refreshInterval)])
+    }
+
+    @Test func aNewFailureReplacesTheScheduledRetry() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        clock.advance(by: 10)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(clock.scheduledDeadlines == [
+            // The second failure waits twice as long.
+            Samples.readingMoment.addingTimeInterval(10 + 60),
+            Samples.readingMoment.addingTimeInterval(refreshInterval),
+        ])
+    }
+
     @Test func closingThePanelStopsTheRetries() async {
         await transport.answer(with: .networkError)
         core.panelOpened()
