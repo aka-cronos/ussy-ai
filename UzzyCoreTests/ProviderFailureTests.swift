@@ -172,6 +172,33 @@ struct ProviderFailureTests {
         #expect(await transport.requests.count == 1)
     }
 
+    // MARK: Oversized responses
+
+    @Test func aResponseOverTheByteBudgetFailsWithItsOwnCategoryAndIsNotRetried() async {
+        await transport.answer(with: .responseTooLarge)
+
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.responseTooLarge))
+        #expect(log.events == [.queryFailed(.claude, .responseTooLarge)])
+        #expect(await requestTimes(over: refreshInterval - 1) == [])
+    }
+
+    @Test func aResponseOverTheByteBudgetKeepsThePreviousReadingAsStale() async {
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .responseTooLarge)
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .stale([
+            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment, isStale: true),
+            Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: Samples.readingMoment, isStale: true),
+        ], failure: .responseTooLarge))
+    }
+
     @Test func theLogKeepsOnlyTheCategoryOfAnIncompatibleResponse() async {
         await transport.answer(with: .response(HTTPResponse(status: 200, headers: [:], body: Data("sample-secret".utf8))))
 

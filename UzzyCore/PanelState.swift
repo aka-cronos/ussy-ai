@@ -88,6 +88,10 @@ public enum Failure: Error, Sendable, Equatable {
     /// The provider answered with something the app does not understand, e.g.
     /// because it changed its format. No alternative route is tried.
     case incompatibleResponse
+    /// The provider's response was larger than any valid answer can be, so
+    /// it was dropped without being decoded. The card explains it as an incompatible
+    /// response; the log keeps it apart.
+    case responseTooLarge
     /// Cursor sent a billing-cycle reset in an unsupported format.
     case incompatibleResetFormat
 }
