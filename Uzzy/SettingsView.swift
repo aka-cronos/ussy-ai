@@ -17,17 +17,7 @@ struct SettingsView: View {
             Section("Cuotas") {
                 let title = "Porcentaje en las tarjetas"
                 let description = "Muestra cuánto has usado de cada límite o cuánto te queda hasta el reinicio."
-                // Laid out by hand: a form row aligns its control with the
-                // title's baseline, which lifts a segmented control above it.
-                // Here its top meets the title's, like the switches below.
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
+                SettingsRow(title: title, description: description) {
                     // The hidden title still names the control for VoiceOver.
                     Picker(title, selection: $selectedMagnitude) {
                         // The same words as the suffix after each card's figure.
@@ -71,23 +61,34 @@ private struct ProviderRow: View {
 
     var body: some View {
         let description = "Usa la sesión de \(provider.officialApp) de este Mac."
-        Toggle(isOn: $isOn) {
-            RowLabel(title: provider.name, description: description)
+        SettingsRow(title: provider.name, description: description) {
+            Toggle("Mostrar \(provider.name)", isOn: $isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .accessibilityHint(description)
         }
-        .toggleStyle(.switch)
-        .accessibilityLabel("Mostrar \(provider.name)")
-        .accessibilityHint(description)
     }
 }
 
-/// A row's title over its secondary description, as System Settings lays
-/// out a control's label in a grouped form.
-private struct RowLabel: View {
+/// A row's title over its secondary description, with its control
+/// centered on the trailing side. Laid out by hand because a form row
+/// aligns the control with the title's baseline, which lifts a taller
+/// control such as a segmented one above the title.
+private struct SettingsRow<Control: View>: View {
     let title: String
     let description: String
+    @ViewBuilder let control: Control
 
     var body: some View {
-        Text(title)
-        Text(description)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            control
+        }
     }
 }
