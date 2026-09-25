@@ -50,9 +50,22 @@
 		A10000000000000000000042 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A10000000000000000000044 /* Exceptions for "Uzzy" folder in "UzzyCoreTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Format.swift,
+			);
+			target = A10000000000000000000012 /* UzzyCoreTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000004 /* Uzzy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A10000000000000000000044 /* Exceptions for "Uzzy" folder in "UzzyCoreTests" target */,
+			);
 			path = Uzzy;
 			sourceTree = "<group>";
 		};

@@ -54,8 +54,14 @@ enum Format {
         return "\(seconds) s"
     }
 
+    /// The longest countdown shown, in minutes. Converting a longer interval
+    /// to `Int` could trap.
+    private static let longestCountdownMinutes = Double(Int32.max)
+
+    /// An interval that is not ahead counts as zero, and a longer one is cut
+    /// to `longestCountdownMinutes`, so invalid data never traps.
     private static func countdown(_ seconds: TimeInterval) -> String {
-        let minutes = Int(seconds / 60)
+        let minutes = seconds > 0 ? Int(min(seconds / 60, longestCountdownMinutes)) : 0
         let (days, hours, restMinutes) = (minutes / 1440, minutes / 60 % 24, minutes % 60)
         if days > 0 { return "\(days) d \(hours) h" }
         if hours > 0 { return "\(hours) h \(restMinutes) min" }
