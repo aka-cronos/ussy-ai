@@ -98,7 +98,9 @@ final class ProviderRefresh {
             // The user said no; only Actualizar asks again.
             break
         case .failed(let failure, _) where failure.isRejection:
-            // Only a session that changed since the rejection is worth a query.
+            // Only a session that changed since the rejection is worth a
+            // query. After a reused session was rejected there is none to
+            // skip: the current session was never checked.
             startQuery(.read(skipping: session))
         default:
             // A fresh reading needs no query, but may belong to an account
@@ -187,7 +189,7 @@ final class ProviderRefresh {
     }
 
     /// `nil` when the card keeps what it shows: the session read is the one
-    /// to skip, or the provider rejected a reused session.
+    /// to skip, or no query is allowed yet.
     private func read(_ source: SessionSource, queryID: UUID) async -> ProviderReading? {
         guard isCurrent(queryID) else { return nil }
         let session: Session
@@ -227,14 +229,16 @@ final class ProviderRefresh {
         case .failed(let why): failure = why
         }
         log.record(.queryFailed(provider, failure))
+        let kept = reading.lastValidReading(of: session.accountID)
         if failure.isRejection, case .reuse = source {
             // The official app may have renewed the token since it was
-            // read, so the session is not called expired. Automatic
-            // queries stop; the next user action reads it again.
+            // read, so the session is not called expired: the figures go
+            // stale. Automatic queries stop; the next user action reads it
+            // again.
             self.session = nil
-            return nil
+            return .failed(.reusedSessionRejected, keeping: kept)
         }
-        return .failed(failure, keeping: reading.lastValidReading(of: session.accountID))
+        return .failed(failure, keeping: kept)
     }
 
     private func isCurrent(_ id: UUID) -> Bool {
@@ -397,8 +401,9 @@ private extension Failure {
         }
     }
 
+    /// The provider rejected the session, whether read or reused.
     var isRejection: Bool {
-        self == .sessionExpired || self == .accessRefused
+        self == .sessionExpired || self == .accessRefused || self == .reusedSessionRejected
     }
 }
 
