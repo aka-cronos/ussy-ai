@@ -202,9 +202,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
     }
 
     /// Brings the one Settings window forward, creating it the first time.
+    /// Opened from the menu bar, the app is not active and macOS declines the
+    /// cooperative `activate()`, so an open Settings window stays behind the
+    /// frontmost app without focus; activation is forced instead. The panel
+    /// closes only after Settings is key, so the app never lacks a key window.
     @objc func showSettings(_ sender: Any?) {
         core.panelClosed()
-        closePanel()
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 310),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -216,8 +219,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
             window.center()
             settingsWindow = window
         }
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+        closePanel()
     }
 
     /// ⌘W closes the panel like Escape, or else the key window, such as
