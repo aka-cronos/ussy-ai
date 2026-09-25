@@ -290,6 +290,11 @@ private struct FailureMessage: View {
                 title: "Acceso rechazado",
                 detail: "\(provider.name) rechazó la consulta. Puede ser una restricción de la cuenta; revísala en \(provider.officialApp) y pulsa Actualizar."
             )
+        case .reusedSessionRejected:
+            Message(
+                title: "Sin confirmar",
+                detail: "\(provider.name) no aceptó la sesión guardada. Pulsa Actualizar para volver a comprobarla."
+            )
         case .offline:
             Message(title: "Sin conexión", detail: "No se pudo conectar con \(provider.name). Pulsa Actualizar para reintentar.")
         case .timedOut:

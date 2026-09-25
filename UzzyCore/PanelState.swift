@@ -72,6 +72,10 @@ public enum Failure: Error, Sendable, Equatable {
     /// The provider refused the query (403). It may be a restriction other
     /// than the session, so it is not taken as an expired session.
     case accessRefused
+    /// The provider rejected (401 or 403) the session reused by a query no
+    /// user action asked for. The official app may have renewed it since it
+    /// was read, so it is not called expired; the next user action checks it.
+    case reusedSessionRejected
     /// The provider could not be reached: the network is down.
     case offline
     /// The provider did not answer within the time limit.
