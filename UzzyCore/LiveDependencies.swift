@@ -11,11 +11,12 @@ public struct URLSessionTransport: HTTPTransport {
     /// capping what a faulty or hostile answer can make the app download,
     /// hold and decode.
     static let byteBudget = 1_048_576
+    private static let timeout: TimeInterval = 15
 
     private let session: URLSession
 
     public init() {
-        self.init(timeout: 15)
+        self.init(timeout: Self.timeout)
     }
 
     /// `protocolClasses` lets tests answer requests without the network.

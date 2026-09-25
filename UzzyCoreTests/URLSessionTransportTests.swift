@@ -6,7 +6,8 @@ import Testing
 /// network and no accounts.
 @Suite(.timeLimit(.minutes(1)))
 struct URLSessionTransportTests {
-    /// The largest response a provider may send: 1 MiB.
+    /// The largest response a provider may send: 1 MiB, as agreed on the
+    /// issue, so it is written out rather than read from the transport.
     let budget = 1_048_576
     let transport = URLSessionTransport(timeout: 15, protocolClasses: [StandInProvider.self])
 
@@ -57,10 +58,20 @@ struct URLSessionTransportTests {
 
         #expect(await query.value == .networkError)
     }
+
+    @Test func aQueryCancelledWhileItsBodyArrivesEndsWithoutWaitingForTheRest() async {
+        let query = Task { await transport.send(StandInProvider.stalled) }
+
+        try? await Task.sleep(for: .milliseconds(100))
+        query.cancel()
+
+        #expect(await query.value == .networkError)
+    }
 }
 
 /// Answers each request as its URL says: `/body` with `bytes` spaces and an
-/// optional `Content-Length`, `/redirect` with a 302, and `/silent` never.
+/// optional `Content-Length`, `/redirect` with a 302, `/stalled` with the
+/// start of a body that never ends, and `/silent` never.
 private final class StandInProvider: URLProtocol, @unchecked Sendable {
     static func body(bytes: Int, contentLength: Int? = nil) -> URLRequest {
         var components = URLComponents(string: "https://provider.test/body")!
@@ -71,6 +82,7 @@ private final class StandInProvider: URLProtocol, @unchecked Sendable {
 
     static let redirect = URLRequest(url: URL(string: "https://provider.test/redirect")!)
     static let silent = URLRequest(url: URL(string: "https://provider.test/silent")!)
+    static let stalled = URLRequest(url: URL(string: "https://provider.test/stalled")!)
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -99,6 +111,10 @@ private final class StandInProvider: URLProtocol, @unchecked Sendable {
             client.urlProtocol(self, wasRedirectedTo: URLRequest(url: target), redirectResponse: response)
             client.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client.urlProtocolDidFinishLoading(self)
+        case "/stalled":
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: [:])!
+            client.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client.urlProtocol(self, didLoad: Data(#"{"five_hour": "#.utf8))
         default:
             break
         }
