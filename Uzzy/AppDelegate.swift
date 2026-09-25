@@ -18,7 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
         initialMagnitude: QuotaMagnitude(
             rawValue: UserDefaults.standard.string(forKey: "displayMagnitude") ?? ""
         ) ?? .used,
-        initialEnabledProviders: ProviderVisibilityPreferences.enabledProviders(in: .standard)
+        initialEnabledProviders: ProviderPreferences.enabledProviders(in: .standard),
+        initialOrder: ProviderPreferences.order(in: .standard)
     )
     private var settingsWindow: NSWindow?
     #if DEBUG
@@ -228,9 +229,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: 0),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = Format.settings
-            let content = NSHostingController(rootView: SettingsView { [weak self] provider, enabled in
-                self?.setProviderEnabled(enabled, for: provider)
-            })
+            let content = NSHostingController(rootView: SettingsView(
+                setProviderEnabled: { [weak self] provider, enabled in self?.setProviderEnabled(enabled, for: provider) },
+                setProviderOrder: { [weak self] order in self?.setProviderOrder(order) }
+            ))
             // The window takes the form's height, so no row is clipped.
             content.sizingOptions = [.preferredContentSize]
             window.contentViewController = content
@@ -258,6 +260,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
         #if DEBUG
         if scenarios.core !== realCore {
             scenarios.core.setEnabled(enabled, for: provider)
+        }
+        #endif
+    }
+
+    private func setProviderOrder(_ order: [Provider]) {
+        realCore.setOrder(order)
+        #if DEBUG
+        if scenarios.core !== realCore {
+            scenarios.core.setOrder(order)
         }
         #endif
     }
