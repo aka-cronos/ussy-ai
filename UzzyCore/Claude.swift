@@ -20,9 +20,14 @@ enum Claude: ProviderAdapter {
     static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure> {
         guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return .failure(.incompatibleResponse) }
         let limits = response.limits ?? []
+        // One pass groups the entries, so reading each quota does not scan
+        // `limits[]` again.
+        var entries: [Limit.Key: [Window]] = [:]
+        for limit in limits {
+            entries[limit.key, default: []].append(limit.window)
+        }
         func copies(_ window: Window?, kind: String, model: String? = nil) -> [Window] {
-            [window].compactMap { $0 }
-                + limits.filter { $0.kind == kind && $0.scope?.model?.display_name == model }.map(\.window)
+            [window].compactMap { $0 } + entries[Limit.Key(kind: kind, model: model), default: []]
         }
 
         // A missing window is still a quota: it shows as unavailable.
@@ -76,6 +81,13 @@ enum Claude: ProviderAdapter {
         let scope: Scope?
 
         var window: Window { Window(utilization: percent, resets_at: resets_at) }
+        var key: Key { Key(kind: kind, model: scope?.model?.display_name) }
+
+        /// The quota an entry is a copy of: its kind and, if scoped, its model.
+        struct Key: Hashable {
+            let kind: String?
+            let model: String?
+        }
 
         struct Scope: Decodable {
             let model: Model?
