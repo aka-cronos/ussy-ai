@@ -77,13 +77,20 @@ Base is `main`. Push when the branch has no remote yet:
 ### Step 6: Open the PR
 
 ```bash
-gh pr create --base main --head <head> --title "<title>" --body-file <file>
+gh pr create --base main --head <head> --title "<title>" --body-file <file> [--attach <path> ...]
 ```
 
 Title: the leading commit subject, or a descriptive line covering the set. Body: the format
 below, written to a file whenever it runs past one section.
 
-**Done when:** the PR exists and its URL is shown.
+Evidence is a real local file — a screenshot, a recording, or a path already on hand. Reference
+it in the body by its local path (`![Login error state](./evidence/login.png)`) and pass that
+same path as `--attach`, once per file; `gh` uploads each one and rewrites the matching
+reference to the hosted asset. With no local media, omit `--attach`. The flag needs
+`gh` ≥ 2.99.0 and is refused alongside `--web`.
+
+**Done when:** the PR exists, its URL is shown, and every local media path in the body was
+passed as `--attach` — GitHub renders each asset, not a broken relative link.
 
 ## PR body format
 
@@ -93,7 +100,8 @@ Include each section that applies, in this order:
    what this PR integrates and why now.
 2. **`## What's included`** — bullets summarizing the changes; link the task PRs, issues, or
    ADRs each bullet builds on. State load-bearing invariants explicitly (e.g. "query grain
-   untouched, cap is display-only"). For UI changes, attach screenshots or a recording.
+   untouched, cap is display-only"). For UI changes, include screenshots or a recording,
+   uploaded through `--attach` (Step 6).
 3. **`## Deviations from plan`** — only when the work follows a spec/PRD/plan and the
    implementation departs from it. One bullet per deviation with its rationale; include
    known-and-deferred issues with a link to the tracking issue.
