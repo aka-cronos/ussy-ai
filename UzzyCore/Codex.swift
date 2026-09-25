@@ -20,26 +20,38 @@ enum Codex: ProviderAdapter {
     ///
     /// Each window is named by its length, never by its position: the
     /// provider may send the weekly window first. Windows of the same length
-    /// are copies of one quota, and the reading decides whether they agree.
-    /// Credits, spend control, model usage and every identifier are ignored.
+    /// and limit name are copies of one quota, wherever they appear in the
+    /// response, and the reading decides whether they agree. Credits, spend
+    /// control, model usage and every identifier are ignored.
     static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure> {
         guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return .failure(.incompatibleResponse) }
-        let limits = (response.additional_rate_limits ?? []).compactMap { limit in
-            limit.limit_name.map { name in readings(of: limit.rate_limit, at: moment) { .limit(name, $0) } }
+        // A named limit may arrive in several entries, so its windows are
+        // gathered by name before they are read. Names keep the order in
+        // which they first appear.
+        let namedWindows = (response.additional_rate_limits ?? []).compactMap { limit in
+            limit.limit_name.map { (name: $0, windows: windows(of: limit.rate_limit)) }
         }
-        let quotas = readings(of: response.rate_limit, at: moment) { $0 } + limits.joined()
+        let names = namedWindows.map(\.name).uniqued()
+        let limits = names.flatMap { name in
+            let windows = namedWindows.filter { $0.name == name }.flatMap(\.windows)
+            return readings(of: windows, at: moment) { .limit(name, $0) }
+        }
+        let quotas = readings(of: windows(of: response.rate_limit), at: moment) { $0 } + limits
         // Nothing says the plan has no quotas, so a response without any
         // window is not understood.
         return quotas.isEmpty ? .failure(.incompatibleResponse) : .success(quotas)
     }
 
+    private static func windows(of rateLimit: RateLimit?) -> [Window] {
+        [rateLimit?.primary_window, rateLimit?.secondary_window].compactMap { $0 }
+    }
+
     /// One reading per window length, the shortest first.
     private static func readings(
-        of rateLimit: RateLimit?,
+        of windows: [Window],
         at moment: Date,
         named name: (QuotaPeriod) -> QuotaPeriod
     ) -> [QuotaReading] {
-        let windows = [rateLimit?.primary_window, rateLimit?.secondary_window].compactMap { $0 }
         let lengths = Set(windows.map(\.limit_window_seconds)).sorted()
         return lengths.map { length in
             let copies = windows.filter { $0.limit_window_seconds == length }
