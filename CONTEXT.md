@@ -6,15 +6,16 @@ Uzzy shows the subscription quotas of AI services and when they reset.
 
 **Subscription quota**:
 A usage limit a provider applies to a subscription over a given period. Distinct from monetary spend and from billed API consumption.
-_Avoid_: Balance, credits, consumption (without saying what is measured).
+In Spanish copy it is a «límite de uso».
+_Avoid_: Balance, credits, consumption (without saying what is measured); in Spanish, «cuota» (reads as a fee).
 
 **Used quota**:
-The part of a subscription quota already consumed within its period.
-_Avoid_: Spend, cost.
+The part of a subscription quota already consumed within its period. In Spanish copy it is «usado».
+_Avoid_: Spend, cost; in Spanish, «consumido», «gastado».
 
 **Remaining quota**:
-The part of a subscription quota still available within its period.
-_Avoid_: Available money, balance.
+The part of a subscription quota still available within its period. In Spanish copy it is «restante».
+_Avoid_: Available money, balance; in Spanish, «disponible» (already means the data is present), «libre».
 
 **Reset**:
 The moment, given by the provider, when a subscription quota renews.

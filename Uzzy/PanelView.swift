@@ -194,7 +194,9 @@ private struct QuotaView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             switch quota.value {
-            case .percent(let percent, let calculated):
+            // Every remaining figure is calculated as 100 − used, so the card
+            // does not mark it: the chosen magnitude already says so.
+            case .percent(let percent, _):
                 // The label and the bar come from the same value, so they
                 // always show the same magnitude.
                 HStack(alignment: .firstTextBaseline) {
@@ -211,14 +213,9 @@ private struct QuotaView: View {
                 }
                 Bar(fraction: percent / 100)
                     .opacity(quota.isStale ? 0.5 : 1)
-                Group {
-                    if calculated {
-                        Text("Calculado: 100 − usado")
-                    }
-                    Text(Format.reset(quota.reset, now: now))
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text(Format.reset(quota.reset, now: now))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             // No valid reading of this quota, so no reset or reading time to vouch for.
             case .uninterpretable:
                 QuotaNotice(period: quota.period, notice: "Dato no interpretable")
@@ -363,7 +360,7 @@ private extension QuotaPeriod {
     }
 }
 
-private extension QuotaMagnitude {
+extension QuotaMagnitude {
     var name: String {
         switch self {
         case .used: "usado"
@@ -372,7 +369,7 @@ private extension QuotaMagnitude {
     }
 }
 
-private extension Provider {
+extension Provider {
     var name: String {
         switch self {
         case .claude: "Claude"

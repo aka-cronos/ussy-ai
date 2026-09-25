@@ -18,8 +18,10 @@ enum Format {
     /// The main menu command that closes the front window or the panel (⌘W).
     static let closeWindow = "Cerrar ventana"
 
+    /// E.g. "20.5%": a decimal point and no space before the sign, unlike
+    /// the Spanish convention the rest of the copy follows.
     static func percent(_ value: Double) -> String {
-        "\(value.formatted(.number.precision(.fractionLength(0...1)).locale(locale))) %"
+        "\(value.formatted(.number.precision(.fractionLength(0...1)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))))%"
     }
 
     static func time(_ date: Date) -> String {
