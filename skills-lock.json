@@ -29,7 +29,7 @@
       "source": "aka-cronos/skills",
       "sourceType": "github",
       "skillPath": "skills/create-pull-request/SKILL.md",
-      "computedHash": "352435c5179a87d2b8cd70393b55c8833a2386fb6362be81bbe7044dcebc0306"
+      "computedHash": "881d348fd3927a73fce59212c2f182a2ee2147e38821ffca12c43251f5f669b3"
     },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
