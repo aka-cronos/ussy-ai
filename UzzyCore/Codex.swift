@@ -28,13 +28,15 @@ enum Codex: ProviderAdapter {
         // A named limit may arrive in several entries, so its windows are
         // gathered by name before they are read. Names keep the order in
         // which they first appear.
-        let namedWindows = (response.additional_rate_limits ?? []).compactMap { limit in
-            limit.limit_name.map { (name: $0, windows: windows(of: limit.rate_limit)) }
+        var names: [String] = []
+        var namedWindows: [String: [Window]] = [:]
+        for limit in response.additional_rate_limits ?? [] {
+            guard let name = limit.limit_name else { continue }
+            if namedWindows[name] == nil { names.append(name) }
+            namedWindows[name, default: []].append(contentsOf: windows(of: limit.rate_limit))
         }
-        let names = namedWindows.map(\.name).uniqued()
         let limits = names.flatMap { name in
-            let windows = namedWindows.filter { $0.name == name }.flatMap(\.windows)
-            return readings(of: windows, at: moment) { .limit(name, $0) }
+            readings(of: namedWindows[name, default: []], at: moment) { .limit(name, $0) }
         }
         let quotas = readings(of: windows(of: response.rate_limit), at: moment) { $0 } + limits
         // Nothing says the plan has no quotas, so a response without any
@@ -52,9 +54,9 @@ enum Codex: ProviderAdapter {
         at moment: Date,
         named name: (QuotaPeriod) -> QuotaPeriod
     ) -> [QuotaReading] {
-        let lengths = Set(windows.map(\.limit_window_seconds)).sorted()
-        return lengths.map { length in
-            let copies = windows.filter { $0.limit_window_seconds == length }
+        let byLength = Dictionary(grouping: windows, by: \.limit_window_seconds)
+        return byLength.keys.sorted().map { length in
+            let copies = byLength[length, default: []]
             return QuotaReading(
                 period: name(period(lasting: length)),
                 usedPercents: copies.compactMap(\.used_percent),
