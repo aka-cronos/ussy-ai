@@ -81,5 +81,22 @@ enum Codex: ProviderAdapter {
         let used_percent: Double?
         let limit_window_seconds: Int
         let reset_at: Double?
+
+        private enum CodingKeys: String, CodingKey {
+            case used_percent, limit_window_seconds, reset_at
+        }
+
+        init(from decoder: any Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            used_percent = try values.decodeIfPresent(Double.self, forKey: .used_percent)
+            limit_window_seconds = try values.decode(Int.self, forKey: .limit_window_seconds)
+            // A bad reset must not discard a valid percentage. Keep an
+            // invalid value so another copy cannot supply a trusted reset.
+            do {
+                reset_at = try values.decodeIfPresent(Double.self, forKey: .reset_at)
+            } catch {
+                reset_at = .nan
+            }
+        }
     }
 }

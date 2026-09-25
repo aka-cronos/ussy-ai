@@ -155,6 +155,7 @@ struct QuotaPresentationTests {
         #""resets_at": null"#,
         #""resets_at": "mañana""#,
         #""other": null"#,
+        #""resets_at": "9999-12-31T23:59:59Z""#,
     ])
     func aResetWithoutAValidDateIsUnknownAndTheFigureIsKept(resetsAt: String) async {
         let core = await openedPanel(claudeResponse: """

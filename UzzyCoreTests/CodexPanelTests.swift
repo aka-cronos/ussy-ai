@@ -119,6 +119,75 @@ struct CodexPanelTests {
         ]))
     }
 
+    /// A reset more than a year away from the reading, ahead or behind,
+    /// cannot be the quota's reset. The figure is kept.
+    @Test(arguments: ["1e30", "-1e30", "1.7976931348623157e308", "0", "1853882000", "1726000000"])
+    func aResetOutsideAYearOfTheReadingIsUnknownAndTheFigureIsKept(resetAt: String) async {
+        await transport.answer(with: .codex(rateLimit: """
+            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": \(resetAt)}}
+            """), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .fiveHours, value: .percent(10, calculated: false), reset: .unknown, readAt: Samples.readingMoment),
+        ]))
+        // The other cards are not affected.
+        guard case .quotas = core.state.cards.first(where: { $0.provider == .claude })?.content else {
+            Issue.record("The Claude card does not show its quotas")
+            return
+        }
+    }
+
+    /// The bounds are a year either side of the reading, leap years included.
+    @Test(arguments: [366.0, -366.0])
+    func aResetWithinAYearOfTheReadingIsKept(days: Double) async {
+        let reset = Samples.readingMoment.addingTimeInterval(days * 86_400)
+        await transport.answer(with: .codex(rateLimit: """
+            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": \(reset.timeIntervalSince1970)}}
+            """), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(
+                period: .fiveHours,
+                value: .percent(10, calculated: false),
+                reset: days > 0 ? .at(reset) : .pendingConfirmation,
+                readAt: Samples.readingMoment,
+                isStale: days < 0
+            ),
+        ]))
+    }
+
+    @Test(arguments: ["1e400", "-1e400"])
+    func anUnrepresentableResetKeepsTheValidPercentage(reset: String) async {
+        await transport.answer(with: .codex(rateLimit: """
+            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": \(reset)}}
+            """), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .fiveHours, value: .percent(10, calculated: false),
+                  reset: .unknown, readAt: Samples.readingMoment),
+        ]))
+    }
+
+    @Test func anUnrepresentableCopyDoesNotBorrowAnotherCopysReset() async {
+        await transport.answer(with: .codex(rateLimit: """
+            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1e400},
+             "secondary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1790186400}}
+            """), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .fiveHours, value: .percent(10, calculated: false),
+                  reset: .unknown, readAt: Samples.readingMoment),
+        ]))
+    }
+
     @Test func aPercentOutOfRangeIsUninterpretable() async {
         await transport.answer(with: .codex(rateLimit: """
             {"primary_window": {"used_percent": 104, "limit_window_seconds": 18000, "reset_at": 1790186400}}
