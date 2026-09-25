@@ -9,7 +9,8 @@ struct QuotaReading: Sendable, Equatable {
     /// Every used percentage reported for this quota, unchecked. Empty when
     /// the quota was not reported.
     let usedPercents: [Double]
-    /// Every valid reset date reported for this quota.
+    /// Every reset date reported for this quota, unchecked. Text that is not
+    /// a date is left out.
     let resets: [Date]
     let readAt: Date
 
@@ -17,6 +18,9 @@ struct QuotaReading: Sendable, Equatable {
     /// It matches the precision the figures are checked against.
     static let percentAgreement = 1.0
     static let resetAgreement: TimeInterval = 60
+    /// A reset further than this from the reading, in either direction, is
+    /// not a date the quota can have. A year, leap years included.
+    static let maxResetDistance: TimeInterval = 366 * 86_400
 
     /// `stale` when a later query failed. A reset that passed without a new
     /// reading makes the figure stale too.
@@ -33,6 +37,7 @@ struct QuotaReading: Sendable, Equatable {
 
     private func reset(at now: Date) -> Reset {
         guard let reset = resets.first,
+              resets.allSatisfy({ abs($0.timeIntervalSince(readAt)) <= Self.maxResetDistance }),
               resets.allSatisfy({ abs($0.timeIntervalSince(reset)) <= Self.resetAgreement })
         else { return .unknown }
         return reset > now ? .at(reset) : .pendingConfirmation

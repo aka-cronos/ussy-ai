@@ -91,7 +91,13 @@ struct CursorPanelTests {
         ]))
     }
 
-    @Test(arguments: [#""billingCycleEnd": null,"#, "", #""billingCycleEnd": "soon","#, #""billingCycleEnd": "0","#])
+    @Test(arguments: [
+        #""billingCycleEnd": null,"#,
+        "",
+        #""billingCycleEnd": "soon","#,
+        #""billingCycleEnd": "0","#,
+        #""billingCycleEnd": "9223372036854775807","#,
+    ])
     func withoutAValidEndOfTheBillingCycleTheResetIsUnknown(billingCycleEnd: String) async {
         await transport.answer(with: .json("""
             {\(billingCycleEnd) "planUsage": {"autoPercentUsed": 18.5, "apiPercentUsed": 42.75}}
