@@ -344,6 +344,72 @@ struct ProviderFailureTests {
         #expect(await requestTimes(over: 100) == [30, 90])
     }
 
+    @Test func aRepeatedZeroRetryAfterIsRetriedWithAProgressiveWait() async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "0"], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+        for _ in 0..<10 {
+            clock.advance(by: 0)
+            await core.queriesFinished()
+        }
+
+        #expect(await transport.requests.count == 1)
+        #expect(claudeContent() == .failed(.rateLimited(until: nil)))
+        #expect(await requestTimes(over: 100) == [30, 90])
+    }
+
+    @Test(arguments: [
+        "0",
+        // 2026-09-23T14:00:00Z, before the reading moment.
+        "Wed, 23 Sep 2026 14:00:00 GMT",
+        "-30",
+        "soon",
+        "",
+        "99999999999999999999999",
+    ])
+    func aRetryAfterThatIsNotInTheFutureIsRetriedWithAProgressiveWait(value: String) async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": value], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.rateLimited(until: nil)))
+        #expect(await requestTimes(over: 100) == [30, 90])
+    }
+
+    @Test(arguments: [
+        "86400",
+        "9223372036854775807",
+        "Fri, 31 Dec 9999 23:59:59 GMT",
+    ])
+    func aRetryAfterBeyondAnHourIsCutToAnHour(value: String) async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": value], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(claudeContent() == .failed(.rateLimited(until: Samples.readingMoment.addingTimeInterval(3600))))
+        clock.advance(by: 3599)
+        core.refresh()
+        await core.queriesFinished()
+        #expect(await transport.requests.count == 1)
+        clock.advance(by: 1)
+        await core.queriesFinished()
+        #expect(await transport.requests.count == 2)
+    }
+
+    @Test func closingThePanelStopsTheRetriesOfAZeroRetryAfter() async {
+        await transport.answer(with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "0"], body: Data())))
+        core.panelOpened()
+        await core.queriesFinished()
+        core.panelClosed()
+
+        clock.advance(by: 0)
+        await core.queriesFinished()
+        clock.advance(by: 1000)
+        await core.queriesFinished()
+
+        #expect(await transport.requests.count == 1)
+    }
+
     @Test func tooManyQueriesKeepsThePreviousReadingAsStale() async {
         core.panelOpened()
         await core.queriesFinished()
