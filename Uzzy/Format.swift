@@ -1,14 +1,22 @@
 import Foundation
 import UzzyCore
 
-/// Panel text, in local time. The UI copy is Spanish.
+/// The app's user-facing text: panel figures in local time, window titles and
+/// command names. The UI copy is Spanish.
 enum Format {
     private static let locale = Locale(identifier: "es_ES")
 
     /// The product name, from the bundle's display name so a rename touches only the build settings.
     static let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
         ?? ProcessInfo.processInfo.processName
+    /// The quit command, in the panel and in the main menu (⌘Q).
     static let quitApp = "Salir de \(appName)"
+    /// The Settings window's title and the panel's settings button label.
+    static let settings = "Ajustes"
+    /// The main menu command that opens Settings (⌘,).
+    static let openSettings = "\(settings)…"
+    /// The main menu command that closes the front window or the panel (⌘W).
+    static let closeWindow = "Cerrar ventana"
 
     static func percent(_ value: Double) -> String {
         "\(value.formatted(.number.precision(.fractionLength(0...1)).locale(locale))) %"
