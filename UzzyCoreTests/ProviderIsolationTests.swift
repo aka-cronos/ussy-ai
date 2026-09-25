@@ -103,6 +103,26 @@ struct ProviderIsolationTests {
         #expect(await transport.requests(to: .codex).count == 3)
     }
 
+    @Test func aZeroRetryAfterWaitsOnlyForItsOwnProvider() async {
+        await transport.answer(
+            with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "0"], body: Data())),
+            for: .claude
+        )
+        await openPanel()
+        for _ in 0..<10 {
+            clock.advance(by: 0)
+            await core.queriesFinished()
+        }
+        #expect(await transport.requests(to: .claude).count == 1)
+
+        clock.advance(by: 30)
+        await core.queriesFinished()
+
+        #expect(await transport.requests(to: .claude).count == 2)
+        #expect(await transport.requests(to: .codex).count == 1)
+        #expect(showsQuotas(.codex))
+    }
+
     @Test func aFailingProviderRetriesOnItsOwnWithoutQueryingTheOther() async {
         await transport.answer(with: .networkError, for: .codex)
         await openPanel()

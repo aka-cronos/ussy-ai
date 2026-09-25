@@ -292,7 +292,8 @@ private struct RetryWait {
     mutating func record(_ failure: Failure, at now: Date, of accountID: String?) {
         failures += 1
         self.accountID = accountID
-        if case .rateLimited(let until?) = failure {
+        // A deadline already reached would retry at once, over and over.
+        if case .rateLimited(let until?) = failure, until > now {
             blockedUntil = until
             retryAt = until
         } else {
@@ -452,18 +453,27 @@ private struct LastValidReading {
     let accountID: String?
 }
 
+/// The longest a provider's `Retry-After` may hold back its queries; a
+/// longer one is taken as malformed and cut to this.
+private let longestRetryAfter: TimeInterval = 60 * 60
+
 /// When a `Retry-After` header, in seconds or as an HTTP date, says to query
-/// again; `nil` without a valid one.
+/// again, at most `longestRetryAfter` away; `nil` without one that points
+/// into the future, so the wait is the progressive one instead.
 private func retryAfter(_ headers: [String: String], from moment: Date) -> Date? {
     guard let value = headers.first(where: { $0.key.caseInsensitiveCompare("Retry-After") == .orderedSame })?.value
         .trimmingCharacters(in: .whitespaces)
     else { return nil }
-    if let seconds = Int(value), seconds >= 0 {
-        return moment.addingTimeInterval(TimeInterval(seconds))
+    let until: Date?
+    if let seconds = Int(value) {
+        until = moment.addingTimeInterval(TimeInterval(seconds))
+    } else {
+        let format = DateFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(identifier: "GMT")
+        format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        until = format.date(from: value)
     }
-    let format = DateFormatter()
-    format.locale = Locale(identifier: "en_US_POSIX")
-    format.timeZone = TimeZone(identifier: "GMT")
-    format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-    return format.date(from: value)
+    guard let until, until > moment else { return nil }
+    return min(until, moment.addingTimeInterval(longestRetryAfter))
 }
