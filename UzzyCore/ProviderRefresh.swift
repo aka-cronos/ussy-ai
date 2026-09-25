@@ -279,6 +279,9 @@ private struct RetryWait {
     /// The first wait doubles with each consecutive failure, up to the longest.
     static let first: TimeInterval = 30
     static let longest: TimeInterval = 15 * 60
+    /// The longest a provider's `Retry-After` may hold back its queries; a
+    /// longer one is cut to this.
+    static let longestRequested: TimeInterval = 60 * 60
 
     private var failures = 0
     /// The account whose failures are counted; `nil` when uncertain.
@@ -453,17 +456,22 @@ private struct LastValidReading {
 }
 
 /// When a `Retry-After` header, in seconds or as an HTTP date, says to query
-/// again; `nil` without a valid one.
+/// again, at most `RetryWait.longestRequested` away; `nil` without one that
+/// points into the future, so the wait is the progressive one instead.
 private func retryAfter(_ headers: [String: String], from moment: Date) -> Date? {
     guard let value = headers.first(where: { $0.key.caseInsensitiveCompare("Retry-After") == .orderedSame })?.value
         .trimmingCharacters(in: .whitespaces)
     else { return nil }
-    if let seconds = Int(value), seconds >= 0 {
-        return moment.addingTimeInterval(TimeInterval(seconds))
+    let until: Date?
+    if let seconds = Int(value) {
+        until = moment.addingTimeInterval(TimeInterval(seconds))
+    } else {
+        let format = DateFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(identifier: "GMT")
+        format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        until = format.date(from: value)
     }
-    let format = DateFormatter()
-    format.locale = Locale(identifier: "en_US_POSIX")
-    format.timeZone = TimeZone(identifier: "GMT")
-    format.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
-    return format.date(from: value)
+    guard let until, until > moment else { return nil }
+    return min(until, moment.addingTimeInterval(RetryWait.longestRequested))
 }
