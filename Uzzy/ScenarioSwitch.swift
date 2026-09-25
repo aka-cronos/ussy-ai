@@ -39,8 +39,10 @@ final class ScenarioSwitch {
 /// The panel with a bar on top to choose the scenario it shows.
 struct ScenarioPanel: View {
     let scenarios: ScenarioSwitch
+    let bounds: PanelBounds
     let openSettings: () -> Void
     let choose: @MainActor (Scenario?) -> Void
+    @State private var barHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,7 +67,8 @@ struct ScenarioPanel: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            PanelView(core: scenarios.core, openSettings: openSettings)
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { barHeight = $0 }
+            PanelView(core: scenarios.core, bounds: bounds, heightAbove: barHeight, openSettings: openSettings)
                 .id(ObjectIdentifier(scenarios.core))
         }
         .frame(width: PanelLayout.width, alignment: .top)

@@ -5,18 +5,43 @@ enum PanelLayout {
     /// Shared by the panel and the debug scenario bar, so the bar cannot
     /// widen the popover past the cards.
     static let width: CGFloat = 360
+    /// Room below the screen's visible frame for the popover's arrow and a
+    /// gap above the Dock or the bottom edge.
+    static let screenMargin: CGFloat = 40
+}
+
+/// How tall the panel may grow: the visible frame of the screen its icon is
+/// on, less a margin. The app updates it before each opening and when the
+/// screens change.
+@Observable
+final class PanelBounds {
+    var maxHeight: CGFloat = .infinity
 }
 
 struct PanelView: View {
     let core: UsageCore
+    let bounds: PanelBounds
+    /// Taken by views above the panel in the same popover.
+    var heightAbove: CGFloat = 0
     let openSettings: () -> Void
     @AppStorage("displayMagnitude") private var selectedMagnitude: QuotaMagnitude = .used
+    @State private var headerHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
+    @State private var cardsHeight: CGFloat = 0
+
+    /// The cards keep their own height until the panel would outgrow the
+    /// screen; past that they scroll, and the header and footer stay put.
+    private var cardsViewportHeight: CGFloat {
+        let available = bounds.maxHeight - heightAbove - headerHeight - footerHeight
+        return max(0, min(cardsHeight, available))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(Format.appName).font(.headline)
                 .padding([.horizontal, .top], 16)
                 .padding(.bottom, 10)
+                .onGeometryChange(for: CGFloat.self, of: \.size.height) { headerHeight = $0 }
 
             if core.state.cards.isEmpty {
                 VStack(spacing: 10) {
@@ -30,56 +55,63 @@ struct PanelView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 32)
             } else {
-                // Recomputes the time left until each reset every minute.
-                // The panel grows with the cards; it does not scroll them.
-                TimelineView(.everyMinute) { _ in
-                    VStack(spacing: 0) {
-                        ForEach(core.state.cards, id: \.provider) { card in
-                            CardView(card: card, magnitude: core.state.magnitude, now: core.now())
-                            if card.provider != core.state.cards.last?.provider {
-                                Divider()
+                ScrollView {
+                    // Recomputes the time left until each reset every minute.
+                    TimelineView(.everyMinute) { _ in
+                        VStack(spacing: 0) {
+                            ForEach(core.state.cards, id: \.provider) { card in
+                                CardView(card: card, magnitude: core.state.magnitude, now: core.now())
+                                if card.provider != core.state.cards.last?.provider {
+                                    Divider()
+                                }
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+                    .onGeometryChange(for: CGFloat.self, of: \.size.height) { cardsHeight = $0 }
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: cardsViewportHeight)
             }
 
-            Divider()
-            HStack {
-                // Quotas live only in memory, so quitting has nothing to save.
-                Button("Salir") { NSApp.terminate(nil) }
-                    .accessibilityLabel(Format.quitApp)
-                    .accessibilityInputLabels(["Salir", Format.quitApp])
-                    .help("\(Format.quitApp) (⌘Q)")
-                Spacer()
-                Button(action: openSettings) {
-                    Image(systemName: "gearshape")
-                        .frame(width: 18, height: 18)
-                }
-                .accessibilityLabel(Format.settings)
-                .help("Abrir ajustes (⌘,)")
-                if !core.state.cards.isEmpty {
-                    Button(action: core.refresh) {
-                        Group {
-                            if core.state.isQuerying {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .accessibilityHidden(true)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                        }
-                        .frame(width: 18, height: 18)
+            VStack(spacing: 0) {
+                Divider()
+                HStack {
+                    // Quotas live only in memory, so quitting has nothing to save.
+                    Button("Salir") { NSApp.terminate(nil) }
+                        .accessibilityLabel(Format.quitApp)
+                        .accessibilityInputLabels(["Salir", Format.quitApp])
+                        .help("\(Format.quitApp) (⌘Q)")
+                    Spacer()
+                    Button(action: openSettings) {
+                        Image(systemName: "gearshape")
+                            .frame(width: 18, height: 18)
                     }
-                    .accessibilityLabel("Actualizar")
-                    .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
-                    .help("Consultar las cuotas ahora")
+                    .accessibilityLabel(Format.settings)
+                    .help("Abrir ajustes (⌘,)")
+                    if !core.state.cards.isEmpty {
+                        Button(action: core.refresh) {
+                            Group {
+                                if core.state.isQuerying {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .accessibilityHidden(true)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                            }
+                            .frame(width: 18, height: 18)
+                        }
+                        .accessibilityLabel("Actualizar")
+                        .accessibilityValue(core.state.isQuerying ? "Consulta en curso" : "")
+                        .help("Consultar las cuotas ahora")
+                    }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { footerHeight = $0 }
         }
         .frame(width: PanelLayout.width)
         // The popover draws the system's Liquid Glass behind this view. An
