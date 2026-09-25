@@ -66,6 +66,9 @@ private struct ProviderRow: View {
                 .toggleStyle(.switch)
                 .labelsHidden()
                 .accessibilityHint(description)
+                // A switch with a hidden label exposes no press action, so
+                // VoiceOver could not flip it without this one.
+                .accessibilityAction { isOn.toggle() }
         }
     }
 }
