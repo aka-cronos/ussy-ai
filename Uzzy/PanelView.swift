@@ -58,7 +58,7 @@ struct PanelView: View {
                     Image(systemName: "gearshape")
                         .frame(width: 18, height: 18)
                 }
-                .accessibilityLabel("Ajustes")
+                .accessibilityLabel(Format.settings)
                 .help("Abrir ajustes (⌘,)")
                 if !core.state.cards.isEmpty {
                     Button(action: core.refresh) {

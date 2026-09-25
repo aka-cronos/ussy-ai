@@ -8,7 +8,7 @@ A macOS menu bar app that shows the subscription quotas of **Claude**, **Codex**
 
 - A fixed menu bar icon opens a panel with one card per enabled provider.
 - Each quota is shown separately (e.g. "5 horas" and "Semanal"), with its own bar, its reset in local time and the time of the last reading. Quotas are never combined into a single percentage.
-- A Settings window (or ⌘, while the panel is open) to choose used or remaining quota and enable or disable each provider. These choices are remembered across launches; disabled providers are not queried.
+- A Settings window (⌘, from the panel or Settings; ⌘W closes it, ⌘Q quits) to choose used or remaining quota and enable or disable each provider. These choices are remembered across launches; disabled providers are not queried.
 - If a provider fails, its card explains why (no session, expired session, offline, incompatible response…) and the others keep working. Missing data is never shown as zero.
 
 The app's interface is in Spanish.
