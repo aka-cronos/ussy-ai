@@ -55,13 +55,16 @@ public struct FixedClock: WallClock {
     }
 
     /// The clock never moves, so scheduled work never runs.
-    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {}
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) -> ScheduledWork {
+        ScheduledWork(onCancel: {})
+    }
 }
 
 /// A clock the test moves by hand. Moving it runs, in order, the work
 /// scheduled up to the new moment.
 public final class ManualClock: WallClock {
     private struct Scheduled {
+        let id = UUID()
         let deadline: Date
         let action: @MainActor @Sendable () -> Void
     }
@@ -76,8 +79,17 @@ public final class ManualClock: WallClock {
         state.withLock { $0.moment }
     }
 
-    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {
-        state.withLock { $0.scheduled.append(Scheduled(deadline: deadline, action: action)) }
+    /// The deadlines of the work neither run nor cancelled, earliest first.
+    public var scheduledDeadlines: [Date] {
+        state.withLock { $0.scheduled.map(\.deadline).sorted() }
+    }
+
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) -> ScheduledWork {
+        let work = Scheduled(deadline: deadline, action: action)
+        state.withLock { $0.scheduled.append(work) }
+        return ScheduledWork(onCancel: { [self] in
+            state.withLock { $0.scheduled.removeAll { $0.id == work.id } }
+        })
     }
 
     @MainActor

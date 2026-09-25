@@ -192,6 +192,16 @@ struct ProviderVisibilityTests {
         #expect(await transport.requests(to: .claude).count == 1)
     }
 
+    @Test func disablingRetiresTheScheduledRetry() async {
+        await transport.answer(with: .networkError, for: .claude)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        core.setEnabled(false, for: .claude)
+
+        #expect(clock.scheduledDeadlines == [Samples.readingMoment.addingTimeInterval(5 * 60)])
+    }
+
     @Test func reEnablingDoesNotBypassRetryAfter() async {
         let until = Samples.readingMoment.addingTimeInterval(600)
         await transport.answer(

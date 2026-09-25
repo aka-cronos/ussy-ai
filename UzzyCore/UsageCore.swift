@@ -27,9 +27,11 @@ public final class UsageCore {
     private var magnitude: QuotaMagnitude
     /// One per card, in the panel's order. Each is queried on its own.
     private let providers: [ProviderRefresh]
-    /// Identifies the only scheduled query that may still run. `nil` while
-    /// the panel is closed.
-    @ObservationIgnored private var cadence: UUID?
+    /// The only scheduled query. `nil` while the panel is closed; replacing
+    /// it cancels the one before.
+    @ObservationIgnored private var cadence: ScheduledWork? {
+        didSet { oldValue?.cancel() }
+    }
 
     private let clock: any WallClock
 
@@ -105,10 +107,8 @@ public final class UsageCore {
 
     /// Replaces any query scheduled before.
     private func scheduleNextQuery() {
-        let cadence = UUID()
-        self.cadence = cadence
-        clock.schedule(at: clock.now().addingTimeInterval(Self.refreshInterval)) { [weak self] in
-            guard let self, self.cadence == cadence else { return }
+        cadence = clock.schedule(at: clock.now().addingTimeInterval(Self.refreshInterval)) { [weak self] in
+            guard let self else { return }
             providers.forEach { $0.queryOnItsOwn() }
             scheduleNextQuery()
         }

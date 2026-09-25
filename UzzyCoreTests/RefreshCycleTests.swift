@@ -100,6 +100,29 @@ struct RefreshCycleTests {
         #expect(await requestCount() == 2)
     }
 
+    @Test func closingThePanelRetiresItsScheduledWork() async {
+        await transport.answer(with: .networkError)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        core.panelClosed()
+
+        #expect(clock.scheduledDeadlines == [])
+    }
+
+    @Test func reopeningAndWakingReplaceTheScheduledQuery() async {
+        core.panelOpened()
+        await core.queriesFinished()
+        core.panelClosed()
+        clock.advance(by: 60)
+        core.panelOpened()
+        clock.advance(by: 60)
+        core.systemWoke()
+        await core.queriesFinished()
+
+        #expect(clock.scheduledDeadlines == [clock.now().addingTimeInterval(refreshInterval)])
+    }
+
     @Test func aQueryInFlightWhenThePanelClosesStillFinishes() async {
         await transport.hold()
         core.panelOpened()
