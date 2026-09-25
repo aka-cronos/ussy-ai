@@ -35,9 +35,11 @@ final class ProviderRefresh {
     /// Retries are only scheduled while the panel is open.
     @ObservationIgnored private var isPanelOpen = false
     @ObservationIgnored private var wait = RetryWait()
-    /// Identifies the only scheduled retry that may still run. `nil` while
-    /// the panel is closed.
-    @ObservationIgnored private var retryTimer: UUID?
+    /// The only scheduled retry. `nil` while the panel is closed or no wait
+    /// is pending; replacing it cancels the one before.
+    @ObservationIgnored private var scheduledRetry: ScheduledWork? {
+        didSet { oldValue?.cancel() }
+    }
 
     private let adapter: any ProviderAdapter.Type
     private let sessionReader: any SessionReader
@@ -79,7 +81,7 @@ final class ProviderRefresh {
             }
             query = nil
             queryID = nil
-            retryTimer = nil
+            scheduledRetry = nil
             reading = .loading
             session = nil
             wait.keepOnlyActiveRateLimit(at: clock.now())
@@ -115,7 +117,7 @@ final class ProviderRefresh {
     /// Stops scheduling retries. A query in flight still finishes.
     func panelClosed() {
         isPanelOpen = false
-        retryTimer = nil
+        scheduledRetry = nil
     }
 
     /// Returns once no query is in flight.
@@ -160,20 +162,24 @@ final class ProviderRefresh {
     /// wait. Anything else ends the wait.
     private func planRetry(after reading: ProviderReading) {
         guard case .failed(let failure, _) = reading, failure.isWorthRetrying else {
-            wait = RetryWait()
+            forgetWait()
             return
         }
         wait.record(failure, at: clock.now(), of: session?.accountID)
         scheduleRetry()
     }
 
+    /// Forgets the failures counted so far and retires their retry.
+    private func forgetWait() {
+        wait = RetryWait()
+        scheduledRetry = nil
+    }
+
     /// Only while the panel is open. Replaces any retry scheduled before.
     private func scheduleRetry() {
         guard isEnabled, isPanelOpen, let retryAt = wait.retryAt else { return }
-        let timer = UUID()
-        retryTimer = timer
-        clock.schedule(at: retryAt) { [weak self] in
-            guard let self, retryTimer == timer else { return }
+        scheduledRetry = clock.schedule(at: retryAt) { [weak self] in
+            guard let self else { return }
             // The wait is over even if a real clock wakes a moment early.
             wait.end()
             queryOnItsOwn()
@@ -203,8 +209,7 @@ final class ProviderRefresh {
             if source.skips(read, shown: reading, lastRead: lastRead) { return nil }
             session = read
             if wait.belongs(toAnotherAccountThan: read.accountID) {
-                wait = RetryWait()
-                retryTimer = nil
+                forgetWait()
             }
             let queries = wait.allowsAnyQuery(at: clock.now())
             forgetReading(unlessItBelongsTo: read, whileQuerying: queries)

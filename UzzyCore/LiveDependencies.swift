@@ -55,10 +55,16 @@ public struct SystemClock: WallClock {
         Date()
     }
 
-    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+    public func schedule(at deadline: Date, _ action: @escaping @MainActor @Sendable () -> Void) -> ScheduledWork {
+        let sleeper = Task { @MainActor in
+            // A cancelled sleep ends early and throws. The check after it
+            // runs on the main actor, like `cancel()`, so a cancellation that
+            // lands once the sleep is over still stops the action.
+            guard (try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))) != nil,
+                  !Task.isCancelled
+            else { return }
             action()
         }
+        return ScheduledWork(onCancel: { sleeper.cancel() })
     }
 }
