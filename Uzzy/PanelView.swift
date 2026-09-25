@@ -363,7 +363,7 @@ private extension QuotaPeriod {
     }
 }
 
-private extension QuotaMagnitude {
+extension QuotaMagnitude {
     var name: String {
         switch self {
         case .used: "usado"
@@ -372,7 +372,7 @@ private extension QuotaMagnitude {
     }
 }
 
-private extension Provider {
+extension Provider {
     var name: String {
         switch self {
         case .claude: "Claude"
