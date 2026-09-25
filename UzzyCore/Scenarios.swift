@@ -45,7 +45,7 @@ extension Scenario {
         quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
         uninterpretable, noSession, sessionExpired, reusedSessionRejected, sessionAccessDenied, unavailableSessionStores,
         incompatibleSession, incompatibleResponse, incompatibleCursorReset,
-        networkFailures, refused,
+        networkFailures, refused, longContent,
     ]
 
     /// Every card shows the sample quotas.
@@ -220,6 +220,49 @@ extension Scenario {
             with: .response(HTTPResponse(status: 429, headers: ["Retry-After": "600"], body: Data())), for: .codex
         )
         await stage.transport.answer(with: .status(429), for: .cursor)
+        await stage.openPanel()
+    }
+}
+
+extension Scenario {
+    /// Names long enough to wrap, one of them without spaces to break at.
+    public static let longLimitNames = [
+        "Sample Model with a Deliberately Long Display Name",
+        "Another-Sample-Model-Name-Without-Any-Spaces",
+    ]
+
+    /// A panel taller than a short screen: Claude and Codex add per-model
+    /// limits, some with long names, and Cursor's figures went stale after a
+    /// timeout, so its card also explains the failure.
+    public static let longContent = Scenario("longContent", "Contenido largo") { stage in
+        await stage.transport.answer(with: .json(#"""
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "seven_day_sonnet": {"utilization": 12.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "seven_day_opus": {"utilization": 48.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [
+            {"kind": "weekly_scoped", "percent": 20.0, "resets_at": "2026-09-25T09:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "\#(longLimitNames[0])"}}},
+            {"kind": "weekly_scoped", "percent": 7.5, "resets_at": "2026-09-25T09:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "\#(longLimitNames[1])"}}}
+          ]
+        }
+        """#), for: .claude)
+        let windows = #"""
+        {
+          "primary_window": {"used_percent": 3, "limit_window_seconds": 18000, "reset_at": 1790186400},
+          "secondary_window": {"used_percent": 9, "limit_window_seconds": 604800, "reset_at": 1790575200}
+        }
+        """#
+        let additional = (["Sample-Model"] + longLimitNames)
+            .map { #"{"limit_name": "\#($0)", "rate_limit": \#(windows)}"# }
+            .joined(separator: ", ")
+        await stage.transport.answer(with: .codex(rateLimit: windows, additional: "[\(additional)]"), for: .codex)
+        await stage.openPanel()
+        stage.core.panelClosed()
+        stage.clock.advance(by: 20 * 60)
+        await stage.transport.answer(with: .timeout, for: .cursor)
         await stage.openPanel()
     }
 }
