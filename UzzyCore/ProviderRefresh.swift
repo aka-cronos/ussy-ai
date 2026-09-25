@@ -279,6 +279,9 @@ private struct RetryWait {
     /// The first wait doubles with each consecutive failure, up to the longest.
     static let first: TimeInterval = 30
     static let longest: TimeInterval = 15 * 60
+    /// The longest a provider's `Retry-After` may hold back its queries; a
+    /// longer one is cut to this.
+    static let longestRequested: TimeInterval = 60 * 60
 
     private var failures = 0
     /// The account whose failures are counted; `nil` when uncertain.
@@ -292,8 +295,7 @@ private struct RetryWait {
     mutating func record(_ failure: Failure, at now: Date, of accountID: String?) {
         failures += 1
         self.accountID = accountID
-        // A deadline already reached would retry at once, over and over.
-        if case .rateLimited(let until?) = failure, until > now {
+        if case .rateLimited(let until?) = failure {
             blockedUntil = until
             retryAt = until
         } else {
@@ -453,13 +455,9 @@ private struct LastValidReading {
     let accountID: String?
 }
 
-/// The longest a provider's `Retry-After` may hold back its queries; a
-/// longer one is taken as malformed and cut to this.
-private let longestRetryAfter: TimeInterval = 60 * 60
-
 /// When a `Retry-After` header, in seconds or as an HTTP date, says to query
-/// again, at most `longestRetryAfter` away; `nil` without one that points
-/// into the future, so the wait is the progressive one instead.
+/// again, at most `RetryWait.longestRequested` away; `nil` without one that
+/// points into the future, so the wait is the progressive one instead.
 private func retryAfter(_ headers: [String: String], from moment: Date) -> Date? {
     guard let value = headers.first(where: { $0.key.caseInsensitiveCompare("Retry-After") == .orderedSame })?.value
         .trimmingCharacters(in: .whitespaces)
@@ -475,5 +473,5 @@ private func retryAfter(_ headers: [String: String], from moment: Date) -> Date?
         until = format.date(from: value)
     }
     guard let until, until > moment else { return nil }
-    return min(until, moment.addingTimeInterval(longestRetryAfter))
+    return min(until, moment.addingTimeInterval(RetryWait.longestRequested))
 }
