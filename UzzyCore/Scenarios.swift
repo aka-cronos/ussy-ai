@@ -43,7 +43,7 @@ extension Scenario {
     /// visible state of the panel.
     public static let all: [Scenario] = [
         quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
-        uninterpretable, noSession, sessionExpired, sessionAccessDenied, unavailableSessionStores,
+        uninterpretable, noSession, sessionExpired, reusedSessionRejected, sessionAccessDenied, unavailableSessionStores,
         incompatibleSession, incompatibleResponse, incompatibleCursorReset,
         networkFailures, refused,
     ]
@@ -149,6 +149,21 @@ extension Scenario {
     public static let sessionExpired = Scenario("sessionExpired", "Sesión vencida") { stage in
         await stage.transport.answer(with: .status(401))
         await stage.openPanel()
+    }
+
+    /// «Sin confirmar»: five minutes after a successful reading, every
+    /// provider rejects the session the automatic query reused (401), so the
+    /// figures go stale. The check made on opening the panel again is held,
+    /// so reopening keeps showing the state.
+    public static let reusedSessionRejected = Scenario("reusedSessionRejected", "Sin confirmar") { stage in
+        await stage.openPanel()
+        await stage.transport.answer(with: .status(401))
+        stage.clock.advance(by: UsageCore.refreshInterval)
+        await stage.core.queriesFinished()
+        stage.core.panelClosed()
+        await stage.transport.hold()
+        stage.core.panelOpened()
+        await stage.transport.waitForRequests(stage.core.enabledProviders.count * 3)
     }
 
     /// «Sin acceso a la sesión»: the user denied the Keychain prompt for

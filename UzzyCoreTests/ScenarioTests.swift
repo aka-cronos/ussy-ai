@@ -103,6 +103,19 @@ struct ScenarioTests {
         #expect(core.state.cards.map(\.content) == [.failed(.sessionExpired), .failed(.sessionExpired), .failed(.sessionExpired)])
     }
 
+    @Test func reusedSessionRejectedKeepsEveryReadingStaleWithoutCallingTheSessionExpired() async {
+        let core = await Scenario.reusedSessionRejected.start()
+
+        for card in core.state.cards {
+            guard case .stale(let quotas, .reusedSessionRejected) = card.content else {
+                Issue.record("Not stale: \(card)")
+                continue
+            }
+            #expect(quotas.allSatisfy { $0.isStale && $0.readAt == Samples.readingMoment })
+        }
+        #expect(core.now() > Samples.readingMoment)
+    }
+
     @Test func sessionAccessDeniedShowsTheKeychainAccessDenied() async {
         let core = await Scenario.sessionAccessDenied.start()
 

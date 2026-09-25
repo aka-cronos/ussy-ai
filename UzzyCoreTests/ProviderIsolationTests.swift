@@ -86,6 +86,24 @@ struct ProviderIsolationTests {
         #expect(content(of: .codex) == .failed(.sessionExpired))
     }
 
+    @Test func aRejectedReusedSessionMarksOnlyItsOwnCardStale() async {
+        await openPanel()
+        await transport.answer(with: .status(401), for: .codex)
+
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+
+        guard case .stale(_, .reusedSessionRejected) = content(of: .codex) else {
+            Issue.record("Not stale: \(String(describing: content(of: .codex)))")
+            return
+        }
+        #expect(showsQuotas(.claude))
+        #expect(await transport.requests(to: .claude).count == 3)
+        #expect(await transport.requests(to: .codex).count == 2)
+    }
+
     @Test func aProviderAskingToWaitDoesNotHoldBackTheOther() async {
         await openPanel()
         await transport.answer(

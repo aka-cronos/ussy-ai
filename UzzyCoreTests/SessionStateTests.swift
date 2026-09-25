@@ -189,9 +189,9 @@ struct SessionStateTests {
 
     /// The official app may have renewed the token since it was read, so a
     /// query no user action asked for does not claim the session expired:
-    /// it keeps the card and leaves the next query to the user.
+    /// it marks the figures stale and leaves the next query to the user.
     @Test(arguments: [401, 403])
-    func aRejectionOfAReusedSessionKeepsTheCardAndWaitsForTheUser(status: Int) async {
+    func aRejectionOfAReusedSessionMarksTheCardStaleAndWaitsForTheUser(status: Int) async {
         core.panelOpened()
         await core.queriesFinished()
 
@@ -200,7 +200,12 @@ struct SessionStateTests {
 
         #expect(await transport.requests.count == 2)
         #expect(await sessionReader.reads == 1)
-        #expect(claudeReadAt() == Samples.readingMoment)
+        guard case .stale(let quotas, .reusedSessionRejected) = claudeContent() else {
+            Issue.record("Not stale: \(String(describing: claudeContent()))")
+            return
+        }
+        #expect(quotas.count == 2)
+        #expect(quotas.allSatisfy { $0.isStale && $0.readAt == Samples.readingMoment })
 
         await sessionReader.answer(with: .session(Session(accessToken: "renewed-token", accountID: "sample-account")))
         await transport.answer(with: .claudeSample)
@@ -211,6 +216,56 @@ struct SessionStateTests {
         #expect(await sessionReader.reads == 2)
         #expect(await transport.requests.last?.value(forHTTPHeaderField: "Authorization") == "Bearer renewed-token")
         #expect(claudeReadAt() == clock.now())
+    }
+
+    /// The session read again may be the very one rejected: the official
+    /// app's current session was never checked, so reopening queries it.
+    @Test(arguments: [401, 403])
+    func afterARejectionOfAReusedSessionReopeningChecksTheSameSession(status: Int) async {
+        core.panelOpened()
+        await core.queriesFinished()
+        await transport.answer(with: .status(status))
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+        core.panelClosed()
+
+        await transport.answer(with: .claudeSample)
+        core.panelOpened()
+        await core.queriesFinished()
+
+        #expect(await sessionReader.reads == 2)
+        #expect(await transport.requests.count == 3)
+        #expect(claudeReadAt() == clock.now())
+    }
+
+    @Test(arguments: [401, 403])
+    func afterARejectionOfAReusedSessionActualizarChecksItAgain(status: Int) async {
+        core.panelOpened()
+        await core.queriesFinished()
+        await transport.answer(with: .status(status))
+        clock.advance(by: refreshInterval)
+        await core.queriesFinished()
+
+        await transport.answer(with: .claudeSample)
+        core.refresh()
+        await core.queriesFinished()
+
+        #expect(await sessionReader.reads == 2)
+        #expect(await transport.requests.count == 3)
+        #expect(claudeReadAt() == clock.now())
+    }
+
+    /// Figures whose account cannot be verified are never kept as stale.
+    @Test func aRejectionOfAReusedSessionOfUncertainIdentityKeepsNoFigures() async {
+        await sessionReader.answer(with: .session(Session(accessToken: "sample-token", accountID: nil)))
+        core.panelOpened()
+        await core.queriesFinished()
+
+        await transport.answer(with: .status(401))
+        await runTheCadenceAndWake()
+
+        #expect(await transport.requests.count == 2)
+        #expect(claudeContent() == .failed(.reusedSessionRejected))
     }
 
     /// Three ticks of the 5-minute cadence, then waking from sleep: the
