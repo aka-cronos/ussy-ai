@@ -103,6 +103,95 @@ struct CodexPanelTests {
         ]))
     }
 
+    /// A named limit is one quota per name and period, however many entries
+    /// of the response repeat it.
+    @Test func copiesOfANamedLimitThatAgreeAreShownOnce() async {
+        await transport.answer(with: .codex(
+            rateLimit: "null",
+            additional: """
+                [
+                  {"limit_name": "Model", "rate_limit": {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1790186400}}},
+                  {"limit_name": "Model", "rate_limit": {"primary_window": {"used_percent": 10.5, "limit_window_seconds": 18000, "reset_at": 1790186430}}}
+                ]
+                """
+        ), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .limit("Model", .fiveHours), value: .percent(10, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment),
+        ]))
+    }
+
+    /// Copies that contradict each other are one quota whose figure cannot be
+    /// trusted, whichever copy comes first.
+    @Test(arguments: [(10, 90), (90, 10)])
+    func contradictoryCopiesOfANamedLimitAreOneUninterpretableQuota(first: Int, second: Int) async {
+        await transport.answer(with: .codex(
+            rateLimit: "null",
+            additional: """
+                [
+                  {"limit_name": "Model", "rate_limit": {"primary_window": {"used_percent": \(first), "limit_window_seconds": 18000, "reset_at": 1790186400}}},
+                  {"limit_name": "Model", "rate_limit": {"primary_window": {"used_percent": \(second), "limit_window_seconds": 18000, "reset_at": 1790186400}}}
+                ]
+                """
+        ), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .limit("Model", .fiveHours), value: .uninterpretable, reset: .at(fiveHourReset), readAt: Samples.readingMoment),
+        ]))
+    }
+
+    /// Copies that disagree on the reset give no date to trust, so the reset
+    /// is unknown and the agreeing figure is kept.
+    @Test(arguments: [(1790186400, 1790190000), (1790190000, 1790186400)])
+    func copiesOfANamedLimitWithContradictoryResetsHaveAnUnknownReset(first: Int, second: Int) async {
+        await transport.answer(with: .codex(
+            rateLimit: "null",
+            additional: """
+                [
+                  {"limit_name": "Model", "rate_limit": {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": \(first)}}},
+                  {"limit_name": "Model", "rate_limit": {"secondary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": \(second)}}}
+                ]
+                """
+        ), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .limit("Model", .fiveHours), value: .percent(10, calculated: false), reset: .unknown, readAt: Samples.readingMoment),
+        ]))
+    }
+
+    /// Only the same name over the same period is reconciled. A name's quotas
+    /// stay together, in the order the names first appear, the shortest first.
+    @Test func namedLimitsAreReconciledOnlyWithTheSameNameAndPeriod() async {
+        await transport.answer(with: .codex(
+            rateLimit: """
+                {"primary_window": {"used_percent": 12, "limit_window_seconds": 18000, "reset_at": 1790186400}}
+                """,
+            additional: """
+                [
+                  {"limit_name": "Model-A", "rate_limit": {"primary_window": {"used_percent": 30, "limit_window_seconds": 604800, "reset_at": 1790575200}}},
+                  {"limit_name": "Model-B", "rate_limit": {"primary_window": {"used_percent": 20, "limit_window_seconds": 18000, "reset_at": 1790186400}}},
+                  {"limit_name": "Model-A", "rate_limit": {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1790186400}}},
+                  {"limit_name": "Model-A", "rate_limit": {"primary_window": {"used_percent": 30, "limit_window_seconds": 604800, "reset_at": 1790575200}}}
+                ]
+                """
+        ), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .fiveHours, value: .percent(12, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment),
+            Quota(period: .limit("Model-A", .fiveHours), value: .percent(10, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment),
+            Quota(period: .limit("Model-A", .weekly), value: .percent(30, calculated: false), reset: .at(weeklyReset), readAt: Samples.readingMoment),
+            Quota(period: .limit("Model-B", .fiveHours), value: .percent(20, calculated: false), reset: .at(fiveHourReset), readAt: Samples.readingMoment),
+        ]))
+    }
+
     @Test func aQuotaWithoutUsageOrResetShowsWhatIsMissingWithoutInventingIt() async {
         await transport.answer(with: .codex(rateLimit: """
             {
