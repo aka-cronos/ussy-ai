@@ -44,11 +44,20 @@ open build/Build/Products/Debug/Uzzy.app
 
 ### Install
 
-To keep Uzzy running day to day, build it in Release and copy it to `/Applications`:
+To keep Uzzy running day to day, build it in Release and copy it to `/Applications`. From the repo root you can paste the whole block; Terminal runs the three commands in order.
 
 ```sh
-xcodebuild build -scheme Uzzy -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+# Compile a Release build into the local `build/` folder
+xcodebuild build \
+  -scheme Uzzy \
+  -configuration Release \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath build
+
+# Install the app next to the rest of your applications
 cp -R build/Build/Products/Release/Uzzy.app /Applications/
+
+# Launch the installed copy
 open /Applications/Uzzy.app
 ```
 
