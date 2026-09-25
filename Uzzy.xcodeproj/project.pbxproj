@@ -55,6 +55,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Format.swift,
+				MainMenu.swift,
 			);
 			target = A10000000000000000000012 /* UzzyCoreTests */;
 		};

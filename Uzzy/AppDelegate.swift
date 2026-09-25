@@ -3,7 +3,7 @@ import SwiftUI
 import UzzyCore
 
 @main
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, AppCommands {
     private var statusItem: NSStatusItem?
     /// Released on quit so AppKit does not `-close` the popover window.
     private var popover: NSPopover?
@@ -41,18 +41,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = MainMenu.make()
         let popover = NSPopover()
         self.popover = popover
         #if DEBUG
         let content = PanelHostingController(rootView: ScenarioPanel(scenarios: scenarios, openSettings: { [weak self] in
-            self?.showSettings()
+            self?.showSettings(nil)
         }) { [weak self] scenario in
             guard let self else { return }
             Task { await self.scenarios.show(scenario, panelIsOpen: self.popover?.isShown == true) }
         })
         #else
         let content = PanelHostingController(rootView: PanelView(core: realCore, openSettings: { [weak self] in
-            self?.showSettings()
+            self?.showSettings(nil)
         }))
         #endif
         content.sizingOptions = .preferredContentSize
@@ -133,25 +134,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     /// Closes the panel like a macOS menu: on Escape or on a click in another app.
-    /// Also quits on ⌘Q, since the app has no menu bar menu to carry that shortcut.
+    /// ⌘Q, ⌘, and ⌘W come from the main menu, in the panel as in Settings.
     private func watchWhileOpen() {
         let escapeKeyCode: UInt16 = 53
         if let keyDown = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            if event.keyCode == escapeKeyCode {
-                self?.closePanel()
-                return nil
-            }
-            if event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
-               event.charactersIgnoringModifiers?.lowercased() == "q" {
-                NSApp.terminate(nil)
-                return nil
-            }
-            if event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
-               event.charactersIgnoringModifiers == "," {
-                self?.showSettings()
-                return nil
-            }
-            return event
+            guard event.keyCode == escapeKeyCode else { return event }
+            self?.closePanel()
+            return nil
         }) {
             eventMonitors.append(keyDown)
         }
@@ -212,13 +201,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         close(window, sel)
     }
 
-    private func showSettings() {
+    /// Brings the one Settings window forward, creating it the first time.
+    @objc func showSettings(_ sender: Any?) {
         core.panelClosed()
         closePanel()
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 310),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            window.title = "Ajustes"
+            window.title = Format.settings
             window.contentViewController = NSHostingController(rootView: SettingsView { [weak self] provider, enabled in
                 self?.setProviderEnabled(enabled, for: provider)
             })
@@ -228,6 +218,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// ⌘W closes the panel like Escape, or else the key window, such as
+    /// Settings, through its own close button's action.
+    @objc func closeWindow(_ sender: Any?) {
+        if popover?.isShown == true {
+            closePanel()
+        } else {
+            NSApp.keyWindow?.performClose(sender)
+        }
     }
 
     private func setProviderEnabled(_ enabled: Bool, for provider: Provider) {
