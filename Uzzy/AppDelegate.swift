@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
     /// Released on quit so AppKit does not `-close` the popover window.
     private var popover: NSPopover?
     private var eventMonitors: [Any] = []
+    private let panelBounds = PanelBounds()
     private let realCore = UsageCore(
         claudeSessionReader: ClaudeCodeSessionReader(),
         codexSessionReader: CodexCLISessionReader(),
@@ -45,14 +46,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
         let popover = NSPopover()
         self.popover = popover
         #if DEBUG
-        let content = PanelHostingController(rootView: ScenarioPanel(scenarios: scenarios, openSettings: { [weak self] in
+        let content = PanelHostingController(rootView: ScenarioPanel(scenarios: scenarios, bounds: panelBounds, openSettings: { [weak self] in
             self?.showSettings(nil)
         }) { [weak self] scenario in
             guard let self else { return }
             Task { await self.scenarios.show(scenario, panelIsOpen: self.popover?.isShown == true) }
         })
         #else
-        let content = PanelHostingController(rootView: PanelView(core: realCore, openSettings: { [weak self] in
+        let content = PanelHostingController(rootView: PanelView(core: realCore, bounds: panelBounds, openSettings: { [weak self] in
             self?.showSettings(nil)
         }))
         #endif
@@ -95,6 +96,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemDidWake), name: NSWorkspace.didWakeNotification, object: nil
         )
+        // A display's resolution or scaling can change while the panel is open.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(fitPanelToScreen),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
 
         #if DEBUG
         // `-scenario <id>` opens the panel on that scenario, e.g. `-scenario stale`.
@@ -127,10 +135,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, App
 
     private func openPanel() {
         guard let popover, let button = statusItem?.button else { return }
+        fitPanelToScreen()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate()
         watchWhileOpen()
         core.panelOpened()
+    }
+
+    /// Keeps the panel within the screen whose menu bar holds the icon, which
+    /// changes when the icon is clicked on another display.
+    @objc private func fitPanelToScreen() {
+        guard let screen = statusItem?.button?.window?.screen ?? NSScreen.main else { return }
+        panelBounds.maxHeight = screen.visibleFrame.height - PanelLayout.screenMargin
     }
 
     /// Closes the panel like a macOS menu: on Escape or on a click in another app.
