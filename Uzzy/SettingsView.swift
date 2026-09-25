@@ -19,7 +19,8 @@ struct SettingsView: View {
                 let description = "Muestra cuánto has usado de cada límite o cuánto te queda hasta el reinicio."
                 // Laid out by hand: a form row aligns its control with the
                 // title's baseline, which lifts a segmented control above it.
-                HStack {
+                // Here its top meets the title's, like the switches below.
+                HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
                         Text(description)
