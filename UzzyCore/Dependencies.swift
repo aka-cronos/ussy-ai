@@ -47,6 +47,9 @@ public enum HTTPResult: Sendable, Equatable {
     case response(HTTPResponse)
     case networkError
     case timeout
+    /// The response grew past the byte budget and was dropped before being
+    /// decoded.
+    case responseTooLarge
 }
 
 public protocol HTTPTransport: Sendable {

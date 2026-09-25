@@ -236,6 +236,34 @@ struct QuotaPresentationTests {
         #expect(claudeQuotas(core)?.last?.value == .percent(20, calculated: false))
     }
 
+    @Test func everyCopyOfAPerModelLimitCountsWhereverItAppears() async {
+        let core = await openedPanel(claudeResponse: """
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "seven_day_sonnet": {"utilization": 12.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "limits": [
+            {"kind": "weekly_scoped", "percent": 20.0, "resets_at": "2026-09-25T09:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "Fable"}}},
+            {"kind": "weekly_scoped", "percent": 12.0, "resets_at": "2026-09-25T09:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "Sonnet"}}},
+            {"kind": "session", "percent": 30.0, "resets_at": "2026-09-23T17:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "Fable"}}},
+            {"kind": "weekly_scoped", "percent": 70.0, "resets_at": "2026-09-25T09:00:00.000000+00:00",
+             "scope": {"model": {"display_name": "Fable"}}}
+          ]
+        }
+        """)
+
+        #expect(claudeQuotas(core) == [
+            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: readingMoment),
+            Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
+            Quota(period: .limit("Sonnet", .weekly), value: .percent(12, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
+            // Its two weekly copies disagree; the session entry is another quota.
+            Quota(period: .limit("Fable", .weekly), value: .uninterpretable, reset: .at(weeklyReset), readAt: readingMoment),
+        ])
+    }
+
     @Test func aQuotaReportedOnlyInLimitsIsShown() async {
         let core = await openedPanel(claudeResponse: """
         {

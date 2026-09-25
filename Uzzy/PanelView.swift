@@ -304,7 +304,7 @@ private struct FailureMessage: View {
         case .rateLimited(let until):
             let when = until.map { "a partir de: \(Format.dayAndTime($0, now: now))" } ?? "en breve"
             Message(title: "Demasiadas consultas", detail: "\(provider.name) pidió esperar. Se volverá a consultar \(when).")
-        case .incompatibleResponse:
+        case .incompatibleResponse, .responseTooLarge:
             Message(
                 title: "Respuesta incompatible",
                 detail: "\(provider.name) respondió en un formato que \(Format.appName) no reconoce. Puede que haya cambiado su servicio."

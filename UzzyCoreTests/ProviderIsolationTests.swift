@@ -50,6 +50,15 @@ struct ProviderIsolationTests {
         #expect(log.events == [.queryFailed(failing, .serverError(status: 500))])
     }
 
+    @Test func aResponseOverTheByteBudgetFailsOnlyItsOwnProvider() async {
+        await transport.answer(with: .responseTooLarge, for: .claude)
+
+        await openPanel()
+
+        #expect(content(of: .claude) == .failed(.responseTooLarge))
+        #expect(showsQuotas(.codex))
+    }
+
     @Test func aProviderWithoutASessionLeavesTheOtherCardShowingItsQuotas() async {
         await codexSessionReader.answer(with: .unknownFormat)
 
