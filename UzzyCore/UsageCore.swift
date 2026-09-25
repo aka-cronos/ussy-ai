@@ -11,7 +11,7 @@ public final class UsageCore {
         let now = clock.now()
         return PanelState(
             magnitude: magnitude,
-            cards: providers.filter(\.isEnabled).map { Card(provider: $0.provider, content: $0.content(in: magnitude, at: now)) },
+            cards: orderedProviders.filter(\.isEnabled).map { Card(provider: $0.provider, content: $0.content(in: magnitude, at: now)) },
             isQuerying: providers.contains { $0.isEnabled && $0.isQuerying }
         )
     }
@@ -20,12 +20,16 @@ public final class UsageCore {
         Set(providers.filter(\.isEnabled).map(\.provider))
     }
 
+    /// Every provider in the panel's card order, disabled ones included so
+    /// they keep their place.
+    public private(set) var order: [Provider]
+
     /// How often providers are queried while the panel is open. Opening the
     /// panel does not query a provider whose reading is younger than this.
     nonisolated static let refreshInterval: TimeInterval = 5 * 60
 
     private var magnitude: QuotaMagnitude
-    /// One per card, in the panel's order. Each is queried on its own.
+    /// One per provider. Each is queried on its own.
     private let providers: [ProviderRefresh]
     /// The only scheduled query. `nil` while the panel is closed; replacing
     /// it cancels the one before.
@@ -43,10 +47,12 @@ public final class UsageCore {
         clock: any WallClock,
         log: any EventLog = SystemLog(),
         initialMagnitude: QuotaMagnitude = .used,
-        initialEnabledProviders: Set<Provider> = Set(Provider.allCases)
+        initialEnabledProviders: Set<Provider> = Set(Provider.allCases),
+        initialOrder: [Provider] = Provider.allCases
     ) {
         self.clock = clock
         magnitude = initialMagnitude
+        order = Provider.order(completing: initialOrder)
         providers = [
             ProviderRefresh(Claude.self, sessionReader: claudeSessionReader, transport: transport, clock: clock, log: log,
                             isEnabled: initialEnabledProviders.contains(.claude)),
@@ -69,6 +75,11 @@ public final class UsageCore {
     /// A disabled provider has neither a card nor session or network work.
     public func setEnabled(_ enabled: Bool, for provider: Provider) {
         providers.first(where: { $0.provider == provider })?.setEnabled(enabled)
+    }
+
+    /// Only sorts the cards: no provider is read or queried again.
+    public func setOrder(_ order: [Provider]) {
+        self.order = Provider.order(completing: order)
     }
 
     /// Reads the sessions again, which may show the Keychain prompt: opening
@@ -103,6 +114,10 @@ public final class UsageCore {
         for refresh in providers where provider == nil || refresh.provider == provider {
             await refresh.queryFinished()
         }
+    }
+
+    private var orderedProviders: [ProviderRefresh] {
+        order.compactMap { provider in providers.first { $0.provider == provider } }
     }
 
     /// Replaces any query scheduled before.

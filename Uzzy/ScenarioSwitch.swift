@@ -24,7 +24,7 @@ final class ScenarioSwitch {
         guard scenario != self.scenario else { return }
         self.scenario = scenario
         core.panelClosed()
-        let next = if let scenario { await scenario.start(enabledProviders: realCore.enabledProviders) } else { realCore }
+        let next = if let scenario { await scenario.start(enabledProviders: realCore.enabledProviders, order: realCore.order) } else { realCore }
         // Another choice came in while this scenario was starting.
         guard self.scenario == scenario else { return }
         core = next
