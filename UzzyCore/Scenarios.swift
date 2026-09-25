@@ -23,8 +23,11 @@ public struct Scenario: Sendable, Identifiable, Hashable {
     /// A usage core with its panel open, showing the scenario. Closing and
     /// opening the panel again keeps showing it.
     @MainActor
-    public func start(enabledProviders: Set<Provider> = Set(Provider.allCases)) async -> UsageCore {
-        let stage = Stage(enabledProviders: enabledProviders)
+    public func start(
+        enabledProviders: Set<Provider> = Set(Provider.allCases),
+        order: [Provider] = Provider.allCases
+    ) async -> UsageCore {
+        let stage = Stage(enabledProviders: enabledProviders, order: order)
         await play(stage)
         return stage.core
     }
@@ -277,7 +280,7 @@ final class Stage {
     ]
     let core: UsageCore
 
-    init(enabledProviders: Set<Provider> = Set(Provider.allCases)) {
+    init(enabledProviders: Set<Provider> = Set(Provider.allCases), order: [Provider] = Provider.allCases) {
         core = UsageCore(
             claudeSessionReader: sessionReaders[.claude]!,
             codexSessionReader: sessionReaders[.codex]!,
@@ -286,7 +289,8 @@ final class Stage {
             clock: clock,
             // Keeps the scenarios' failures out of the system log.
             log: RecordingLog(),
-            initialEnabledProviders: enabledProviders
+            initialEnabledProviders: enabledProviders,
+            initialOrder: order
         )
     }
 
