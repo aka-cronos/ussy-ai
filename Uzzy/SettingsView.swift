@@ -18,13 +18,13 @@ struct SettingsView: View {
                 let title = "Porcentaje en las tarjetas"
                 let description = "Muestra cuánto has usado de cada límite o cuánto te queda hasta el reinicio."
                 LabeledContent {
-                    // The hidden title still names the menu for VoiceOver.
+                    // The hidden title still names the control for VoiceOver.
                     Picker(title, selection: $selectedMagnitude) {
                         // The same words as the suffix after each card's figure.
                         Text(QuotaMagnitude.used.name.localizedCapitalized).tag(QuotaMagnitude.used)
                         Text(QuotaMagnitude.remaining.name.localizedCapitalized).tag(QuotaMagnitude.remaining)
                     }
-                    .pickerStyle(.menu)
+                    .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
                     .accessibilityHint(description)
