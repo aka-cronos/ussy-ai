@@ -160,16 +160,32 @@ struct CodexPanelTests {
         ]))
     }
 
-    /// A number too large for a `Double` is not valid JSON to the decoder,
-    /// so the response is incompatible rather than stopping the app.
-    @Test func aResetTooLargeForANumberMakesTheResponseIncompatible() async {
+    @Test(arguments: ["1e400", "-1e400"])
+    func anUnrepresentableResetKeepsTheValidPercentage(reset: String) async {
         await transport.answer(with: .codex(rateLimit: """
-            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1e400}}
+            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": \(reset)}}
             """), for: .codex)
 
         await openPanel()
 
-        #expect(codexContent() == .failed(.incompatibleResponse))
+        #expect(codexContent() == .quotas([
+            Quota(period: .fiveHours, value: .percent(10, calculated: false),
+                  reset: .unknown, readAt: Samples.readingMoment),
+        ]))
+    }
+
+    @Test func anUnrepresentableCopyDoesNotBorrowAnotherCopysReset() async {
+        await transport.answer(with: .codex(rateLimit: """
+            {"primary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1e400},
+             "secondary_window": {"used_percent": 10, "limit_window_seconds": 18000, "reset_at": 1790186400}}
+            """), for: .codex)
+
+        await openPanel()
+
+        #expect(codexContent() == .quotas([
+            Quota(period: .fiveHours, value: .percent(10, calculated: false),
+                  reset: .unknown, readAt: Samples.readingMoment),
+        ]))
     }
 
     @Test func aPercentOutOfRangeIsUninterpretable() async {
