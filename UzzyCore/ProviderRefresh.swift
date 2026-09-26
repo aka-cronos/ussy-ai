@@ -8,6 +8,15 @@ protocol ProviderAdapter {
     static func request(for session: Session) -> URLRequest
     /// Returns a specific failure when the response cannot be translated.
     static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure>
+    /// The banked resets in a response whose quotas were read, if it holds
+    /// a positive count. Never fails the reading.
+    static func bankedResets(from body: Data) -> Int?
+}
+
+extension ProviderAdapter {
+    static func bankedResets(from body: Data) -> Int? {
+        nil
+    }
 }
 
 /// The refresh of a single provider: its session, its queries, its retry
@@ -66,6 +75,13 @@ final class ProviderRefresh {
 
     func content(in magnitude: QuotaMagnitude, at now: Date) -> CardContent {
         reading.content(in: magnitude, at: now)
+    }
+
+    /// Only with fresh quotas: a failed query hides them even while the
+    /// same account's quotas are shown stale.
+    var bankedResets: Int? {
+        guard case .quotas(let reading) = reading else { return nil }
+        return reading.bankedResets
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -225,7 +241,8 @@ final class ProviderRefresh {
         guard isCurrent(queryID) else { return nil }
         let failure: Failure
         switch answer(to: result, at: clock.now()) {
-        case .quotas(let quotas): return .quotas(LastValidReading(quotas: quotas, accountID: session.accountID))
+        case .quotas(let quotas, let bankedResets):
+            return .quotas(LastValidReading(quotas: quotas, accountID: session.accountID, bankedResets: bankedResets))
         case .failed(let why): failure = why
         }
         log.record(.queryFailed(provider, failure))
@@ -270,7 +287,7 @@ final class ProviderRefresh {
         switch response.status {
         case 200:
             switch adapter.quotas(from: response.body, readAt: moment) {
-            case .success(let quotas): return .quotas(quotas)
+            case .success(let quotas): return .quotas(quotas, bankedResets: adapter.bankedResets(from: response.body))
             case .failure(let failure): return .failed(failure)
             }
         case 401: return .failed(.sessionExpired)
@@ -351,7 +368,7 @@ private struct RetryWait {
 
 /// What a provider's answer to a query says.
 private enum Answer {
-    case quotas([QuotaReading])
+    case quotas([QuotaReading], bankedResets: Int?)
     case failed(Failure)
 }
 
@@ -459,11 +476,12 @@ private enum ProviderReading {
     }
 }
 
-/// The quotas of a provider's last valid query, and the account they belong
-/// to; `nil` when it could not be verified.
+/// The quotas and banked resets of a provider's last valid query, and the
+/// account they belong to; `nil` when it could not be verified.
 private struct LastValidReading {
     let quotas: [QuotaReading]
     let accountID: String?
+    let bankedResets: Int?
 }
 
 /// When a `Retry-After` header, in seconds or as an HTTP date, says to query

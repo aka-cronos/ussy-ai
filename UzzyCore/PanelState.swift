@@ -29,10 +29,15 @@ public enum QuotaMagnitude: String, Sendable, Equatable {
 public struct Card: Sendable, Equatable {
     public let provider: Provider
     public var content: CardContent
+    /// The banked resets the account holds, from the same query as the
+    /// card's fresh quotas. `nil` when there are none to show: the provider
+    /// sent no positive count, or the card has no fresh quotas.
+    public var bankedResets: Int?
 
-    public init(provider: Provider, content: CardContent) {
+    public init(provider: Provider, content: CardContent, bankedResets: Int? = nil) {
         self.provider = provider
         self.content = content
+        self.bankedResets = bankedResets
     }
 }
 

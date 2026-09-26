@@ -258,9 +258,11 @@ extension HTTPResult {
     }
 
     /// A Codex response, answered with a 200, with the given `rate_limit`
-    /// and `additional_rate_limits` JSON.
-    public static func codex(rateLimit: String, additional: String = "null") -> HTTPResult {
-        let body = #"{"plan_type": "plus", "rate_limit": \#(rateLimit), "additional_rate_limits": \#(additional)}"#
+    /// and `additional_rate_limits` JSON, and `rate_limit_reset_credits` when
+    /// `resetCredits` is not `nil`.
+    public static func codex(rateLimit: String, additional: String = "null", resetCredits: String? = nil) -> HTTPResult {
+        let credits = resetCredits.map { #", "rate_limit_reset_credits": \#($0)"# } ?? ""
+        let body = #"{"plan_type": "plus", "rate_limit": \#(rateLimit), "additional_rate_limits": \#(additional)\#(credits)}"#
         return .response(HTTPResponse(status: 200, headers: ["Content-Type": "application/json"], body: Data(body.utf8)))
     }
 

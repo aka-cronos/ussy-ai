@@ -11,7 +11,9 @@ public final class UsageCore {
         let now = clock.now()
         return PanelState(
             magnitude: magnitude,
-            cards: orderedProviders.filter(\.isEnabled).map { Card(provider: $0.provider, content: $0.content(in: magnitude, at: now)) },
+            cards: orderedProviders.filter(\.isEnabled).map {
+                Card(provider: $0.provider, content: $0.content(in: magnitude, at: now), bankedResets: $0.bankedResets)
+            },
             isQuerying: providers.contains { $0.isEnabled && $0.isQuerying }
         )
     }

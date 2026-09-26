@@ -183,6 +183,15 @@ struct ScenarioTests {
         #expect(cursor.allSatisfy { $0.isStale })
     }
 
+    @Test func bankedResetsShowTheCodexCountNextToItsQuotas() async {
+        let core = await Scenario.bankedResets.start()
+        let codex = core.state.cards.first { $0.provider == .codex }
+
+        #expect(codex?.bankedResets == 3)
+        #expect(quotas(codex?.content).map(\.value) == [.percent(12, calculated: false), .percent(41, calculated: false)])
+        #expect(core.state.cards.filter { $0.provider != .codex }.allSatisfy { $0.bankedResets == nil })
+    }
+
     /// The real panel opens its core again every time it is shown.
     @Test(arguments: Scenario.all)
     func reopeningThePanelKeepsShowingTheScenario(_ scenario: Scenario) async {

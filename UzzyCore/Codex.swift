@@ -44,6 +44,15 @@ enum Codex: ProviderAdapter {
         return quotas.isEmpty ? .failure(.incompatibleResponse) : .success(quotas)
     }
 
+    /// `rate_limit_reset_credits.available_count`, the total the account
+    /// holds. Read on its own, so a bad value hides the count and never the
+    /// quotas. `applicable_available_count` and every other field are ignored.
+    static func bankedResets(from body: Data) -> Int? {
+        guard let count = (try? JSONDecoder().decode(BankedResets.self, from: body))?.availableCount, count > 0
+        else { return nil }
+        return count
+    }
+
     private static func windows(of rateLimit: RateLimit?) -> [Window] {
         [rateLimit?.primary_window, rateLimit?.secondary_window].compactMap { $0 }
     }
@@ -71,6 +80,27 @@ enum Codex: ProviderAdapter {
         case 18_000: .fiveHours
         case 604_800: .weekly
         default: .lasting(seconds: seconds)
+        }
+    }
+
+    /// Only an integer count is kept: fractional, overflowing or non-numeric
+    /// values, and a `rate_limit_reset_credits` that is not an object, give
+    /// none.
+    private struct BankedResets: Decodable {
+        let availableCount: Int?
+
+        private enum CodingKeys: String, CodingKey {
+            case rate_limit_reset_credits
+        }
+
+        private enum CreditKeys: String, CodingKey {
+            case available_count
+        }
+
+        init(from decoder: any Decoder) throws {
+            let credits = try? decoder.container(keyedBy: CodingKeys.self)
+                .nestedContainer(keyedBy: CreditKeys.self, forKey: .rate_limit_reset_credits)
+            availableCount = try? credits?.decodeIfPresent(Int.self, forKey: .available_count)
         }
     }
 
