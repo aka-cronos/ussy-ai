@@ -132,9 +132,9 @@ public enum QuotaPeriod: Sendable, Hashable {
     /// A limit the provider sends separately and names, e.g. of a single
     /// model ("Sonnet") or a quota bag ("Cursor Models"), over `period`.
     indirect case limit(String, QuotaPeriod)
-    /// The share of Claude's usage-credit limit used. Not a subscription
-    /// quota but a deliberate exception shown among them, named on its own.
-    /// The provider sends no period boundary or reset for it, so it has none.
+    /// Claude's usage credits spent this month. Not a subscription quota but
+    /// a deliberate exception shown among them, named on its own. The
+    /// provider sends no period boundary or reset for it, so it has none.
     case usageCredits
 }
 
@@ -148,6 +148,41 @@ public enum QuotaValue: Sendable, Equatable {
     case uninterpretable
     /// The provider did not report this quota. Never taken as zero.
     case unavailable
+    /// Money spent this month and the monthly spend limit, if there is one.
+    /// Not a percentage: it is the same in either magnitude, and spending
+    /// past the limit is shown as it is.
+    case spend(Money, limit: Money?)
+}
+
+/// An exact amount of money, e.g. 53.06 US dollars.
+public struct Money: Sendable, Equatable {
+    /// In the currency's major units.
+    public let amount: Decimal
+    /// The currency's ISO 4217 code, e.g. "USD".
+    public let currency: String
+
+    public init(amount: Decimal, currency: String) {
+        self.amount = amount
+        self.currency = currency
+    }
+}
+
+extension Money {
+    /// `minorUnits` of `currency`, e.g. 5306 cents of "USD", using the
+    /// currency's own number of minor-unit digits. Nil for a negative amount
+    /// or a code that is not a current ISO 4217 currency, so no currency is
+    /// ever guessed.
+    init?(minorUnits: Int, currency: String) {
+        guard minorUnits >= 0, Locale.commonISOCurrencyCodes.contains(currency) else { return nil }
+        let format = NumberFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.numberStyle = .currency
+        format.currencyCode = currency
+        self.init(
+            amount: Decimal(sign: .plus, exponent: -format.maximumFractionDigits, significand: Decimal(minorUnits)),
+            currency: currency
+        )
+    }
 }
 
 public enum Reset: Sendable, Equatable {

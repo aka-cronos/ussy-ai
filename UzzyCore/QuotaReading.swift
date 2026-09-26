@@ -6,24 +6,29 @@ import Foundation
 /// that copies that disagree can be told apart from a single figure.
 struct QuotaReading: Sendable, Equatable {
     let period: QuotaPeriod
-    /// Every used percentage reported for this quota, unchecked. Empty when
-    /// the quota was not reported.
-    let usedPercents: [Double]
-    /// Every used percentage calculated from other data of this quota,
-    /// unchecked. They are checked like the reported ones, which are shown
-    /// first when there are any.
-    let calculatedUsedPercents: [Double]
-    /// Every reset date reported for this quota, unchecked. Text that is not
-    /// a date is left out. Nil when the quota has no reset at all, unlike a
-    /// quota whose reset the provider did not date.
-    let resets: [Date]?
+    private let figures: Figures
     let readAt: Date
 
-    init(period: QuotaPeriod, usedPercents: [Double], calculatedUsedPercents: [Double] = [], resets: [Date]?, readAt: Date) {
+    /// What the provider reported for the quota.
+    private enum Figures: Sendable, Equatable {
+        /// Every used percentage and every reset date reported, unchecked.
+        /// No percentage when the quota was not reported; text that is not a
+        /// date is left out of the resets.
+        case usedPercents([Double], resets: [Date])
+        /// Money spent and its limit, already checked. It has no reset.
+        case spend(Money, limit: Money?)
+    }
+
+    init(period: QuotaPeriod, usedPercents: [Double], resets: [Date], readAt: Date) {
         self.period = period
-        self.usedPercents = usedPercents
-        self.calculatedUsedPercents = calculatedUsedPercents
-        self.resets = resets
+        figures = .usedPercents(usedPercents, resets: resets)
+        self.readAt = readAt
+    }
+
+    /// Claude's usage credits spent this month, and their monthly limit.
+    init(usageCreditsSpent spent: Money, limit: Money?, readAt: Date) {
+        period = .usageCredits
+        figures = .spend(spent, limit: limit)
         self.readAt = readAt
     }
 
@@ -48,8 +53,9 @@ struct QuotaReading: Sendable, Equatable {
         )
     }
 
+    /// Nil for money spent, which has no reset at all.
     private func reset(at now: Date) -> Reset? {
-        guard let resets else { return nil }
+        guard case .usedPercents(_, let resets) = figures else { return nil }
         guard let reset = resets.first,
               resets.allSatisfy({ abs($0.timeIntervalSince(readAt)) <= Self.maxResetDistance }),
               resets.allSatisfy({ abs($0.timeIntervalSince(reset)) <= Self.resetAgreement })
@@ -58,13 +64,17 @@ struct QuotaReading: Sendable, Equatable {
     }
 
     private func value(in magnitude: QuotaMagnitude) -> QuotaValue {
-        let figures = usedPercents + calculatedUsedPercents
-        guard let usedPercent = figures.first else { return .unavailable }
-        guard figures.allSatisfy({ $0.isFinite && (0...100).contains($0) }),
-              figures.allSatisfy({ abs($0 - usedPercent) <= Self.percentAgreement })
+        let usedPercents: [Double]
+        switch figures {
+        case .spend(let spent, let limit): return .spend(spent, limit: limit)
+        case .usedPercents(let percents, _): usedPercents = percents
+        }
+        guard let usedPercent = usedPercents.first else { return .unavailable }
+        guard usedPercents.allSatisfy({ $0.isFinite && (0...100).contains($0) }),
+              usedPercents.allSatisfy({ abs($0 - usedPercent) <= Self.percentAgreement })
         else { return .uninterpretable }
         return switch magnitude {
-        case .used: .percent(usedPercent, calculated: usedPercents.isEmpty)
+        case .used: .percent(usedPercent, calculated: false)
         case .remaining: .percent(100 - usedPercent, calculated: true)
         }
     }

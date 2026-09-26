@@ -2,9 +2,9 @@ import Foundation
 import Testing
 import UzzyCore
 
-/// Claude's usage-credit limit («Créditos de uso»): the share of the monthly
-/// spend cap on usage credits used, read from `extra_usage`. It is not a
-/// subscription quota, and it never shows amounts or a reset.
+/// Claude's usage credits («Créditos de uso»): the money spent on them this
+/// month and the monthly spend limit, read from `extra_usage`. They are not a
+/// subscription quota: no percentage, no magnitude and no reset.
 @MainActor
 struct UsageCreditsTests {
     let readingMoment = Samples.readingMoment
@@ -37,6 +37,8 @@ struct UsageCreditsTests {
         """
     }
 
+    static let overTheLimit = #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "utilization": 132.65, "currency": "USD"}"#
+
     func openedPanel(claudeResponse: String, magnitude: QuotaMagnitude = .used) async -> UsageCore {
         let core = UsageCore(
             claudeSessionReader: SampleSessionReader(),
@@ -58,14 +60,19 @@ struct UsageCreditsTests {
         return quotas
     }
 
-    /// The usage-credits row of the Claude card, or nil when there is none.
-    func usageCredits(extraUsage: String?, magnitude: QuotaMagnitude = .used) async -> Quota? {
+    /// The value of the usage-credits row of the Claude card, or nil when
+    /// there is no row.
+    func usageCredits(extraUsage: String?, magnitude: QuotaMagnitude = .used) async -> QuotaValue? {
         let core = await openedPanel(claudeResponse: Self.response(extraUsage: extraUsage), magnitude: magnitude)
-        return claudeQuotas(core)?.first { $0.period == .usageCredits }
+        return claudeQuotas(core)?.first { $0.period == .usageCredits }?.value
     }
 
-    /// A panel whose first Claude reading has a 24 % usage-credits row, with
-    /// a transport and a clock the test drives afterwards.
+    func usd(_ amount: String) -> Money {
+        Money(amount: Decimal(string: amount)!, currency: "USD")
+    }
+
+    /// A panel whose first Claude reading has a usage-credits row, with a
+    /// transport and a clock the test drives afterwards.
     func panelWithAUsageCreditsRow() async -> (UsageCore, ControlledTransport, ManualClock) {
         let clock = ManualClock(readingMoment)
         let transport = ControlledTransport()
@@ -76,14 +83,10 @@ struct UsageCreditsTests {
             transport: transport,
             clock: clock
         )
-        await transport.answer(with: .json(Self.response(extraUsage: #"{"is_enabled": true, "monthly_limit": 5000, "utilization": 24.0}"#)), for: .claude)
+        await transport.answer(with: .json(Self.response(extraUsage: Self.overTheLimit)), for: .claude)
         core.panelOpened()
         await core.queriesFinished()
         return (core, transport, clock)
-    }
-
-    func row(_ value: QuotaValue) -> Quota {
-        Quota(period: .usageCredits, value: value, reset: nil, readAt: readingMoment)
     }
 
     @Test func theSampleResponseWithUsageCreditsDisabledShowsNoRow() async {
@@ -92,129 +95,128 @@ struct UsageCreditsTests {
         #expect(claudeQuotas(core) == subscriptionQuotas)
     }
 
+    @Test func spendingPastTheMonthlyLimitIsShownAsItIs() async {
+        let core = await openedPanel(claudeResponse: Self.response(extraUsage: Self.overTheLimit))
+
+        #expect(claudeQuotas(core) == subscriptionQuotas + [
+            Quota(period: .usageCredits, value: .spend(usd("53.06"), limit: usd("40")), reset: nil, readAt: readingMoment),
+        ])
+    }
+
+    @Test(arguments: [
+        #"{"is_enabled": true, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": null, "used_credits": 5306, "utilization": null, "currency": "USD"}"#,
+    ])
+    func withoutAMonthlyLimitOnlyTheSpendIsShown(extraUsage: String) async {
+        #expect(await usageCredits(extraUsage: extraUsage) == .spend(usd("53.06"), limit: nil))
+    }
+
+    @Test func nothingSpentYetIsZero() async {
+        let extraUsage = #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 0, "utilization": null, "currency": "USD"}"#
+
+        #expect(await usageCredits(extraUsage: extraUsage) == .spend(usd("0"), limit: usd("40")))
+    }
+
+    @Test func aZeroMonthlyLimitIsShownAsItIs() async {
+        let extraUsage = #"{"is_enabled": true, "monthly_limit": 0, "used_credits": 0, "currency": "USD"}"#
+
+        #expect(await usageCredits(extraUsage: extraUsage) == .spend(usd("0"), limit: usd("0")))
+    }
+
+    @Test(arguments: [
+        // Yen have no minor unit, and Bahraini dinars have three digits.
+        ("JPY", "5306", "4000", 5306 as Decimal, 4000 as Decimal),
+        ("BHD", "5306", "4000", Decimal(string: "5.306")!, 4 as Decimal),
+        ("EUR", "5306.0", "4000", Decimal(string: "53.06")!, 40 as Decimal),
+    ])
+    func amountsAreInTheMinorUnitsOfTheirCurrency(currency: String, used: String, limit: String, spent: Decimal, cap: Decimal) async {
+        let extraUsage = #"{"is_enabled": true, "monthly_limit": \#(limit), "used_credits": \#(used), "currency": "\#(currency)"}"#
+
+        #expect(await usageCredits(extraUsage: extraUsage) == .spend(
+            Money(amount: spent, currency: currency), limit: Money(amount: cap, currency: currency)
+        ))
+    }
+
+    @Test func utilizationIsNeverRead() async {
+        let extraUsage = #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "utilization": "not a number", "currency": "USD"}"#
+
+        #expect(await usageCredits(extraUsage: extraUsage) == .spend(usd("53.06"), limit: usd("40")))
+    }
+
+    @Test func theAmountsDoNotChangeWithTheMagnitude() async {
+        let extraUsage = Self.overTheLimit
+
+        #expect(await usageCredits(extraUsage: extraUsage, magnitude: .remaining) == .spend(usd("53.06"), limit: usd("40")))
+    }
+
     @Test(arguments: [
         nil,
         "null",
         #""enabled""#,
         "[]",
-        #"{"monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": null, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": false, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": 1, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": "true", "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#,
+        #"{"monthly_limit": 4000, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": null, "monthly_limit": 4000, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": false, "monthly_limit": 4000, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": 1, "monthly_limit": 4000, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": "true", "monthly_limit": 4000, "used_credits": 5306, "currency": "USD"}"#,
     ])
     func withoutEnabledUsageCreditsThereIsNoRow(extraUsage: String?) async {
         #expect(await usageCredits(extraUsage: extraUsage) == nil)
     }
 
     @Test(arguments: [
-        #"{"is_enabled": true, "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": true, "monthly_limit": null, "used_credits": 2146, "utilization": null}"#,
-        #"{"is_enabled": true, "monthly_limit": 0, "used_credits": 0, "utilization": 0}"#,
-        #"{"is_enabled": true, "monthly_limit": -5000, "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": true, "monthly_limit": "5000", "used_credits": 1200, "utilization": 24.0}"#,
-        #"{"is_enabled": true, "monthly_limit": 1e400, "used_credits": 1200, "utilization": 24.0}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": null, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": -1, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306.5, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": "5306", "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": true, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 1e400, "currency": "USD"}"#,
     ])
-    func anUncappedOrUnusableLimitShowsNoRow(extraUsage: String) async {
+    func withoutAValidSpendThereIsNoRow(extraUsage: String) async {
         #expect(await usageCredits(extraUsage: extraUsage) == nil)
     }
 
     @Test(arguments: [
-        #"{"is_enabled": true, "monthly_limit": 5000}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": null, "utilization": null}"#,
+        #"{"is_enabled": true, "monthly_limit": -4000, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000.5, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": "4000", "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": [4000], "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 1e400, "used_credits": 5306, "currency": "USD"}"#,
     ])
-    func aLimitWithoutAnyFigureShowsNoRow(extraUsage: String) async {
+    func aMalformedMonthlyLimitShowsNoRowRatherThanNoLimit(extraUsage: String) async {
+        #expect(await usageCredits(extraUsage: extraUsage) == nil)
+    }
+
+    @Test(arguments: [
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": null}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": "usd"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": "US"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": "ABC"}"#,
+        // ISO 4217's codes for "no currency" and for testing.
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": "XXX"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": "XTS"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": 5306, "currency": 840}"#,
+    ])
+    func withoutAKnownCurrencyThereIsNoRow(extraUsage: String) async {
         #expect(await usageCredits(extraUsage: extraUsage) == nil)
     }
 
     @Test(arguments: [
         #""enabled""#,
-        #"{"is_enabled": "true", "monthly_limit": 5000, "utilization": 24.0}"#,
-        #"{"is_enabled": true, "monthly_limit": 1e400, "used_credits": 1200}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": [1200], "utilization": "24"}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1e400, "utilization": 1e400}"#,
+        #"{"is_enabled": "true", "monthly_limit": 4000, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 1e400, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 4000, "used_credits": [5306], "currency": 840}"#,
     ])
     func malformedUsageCreditsNeverChangeTheSubscriptionQuotas(extraUsage: String) async {
         let core = await openedPanel(claudeResponse: Self.response(extraUsage: extraUsage))
 
-        #expect(claudeQuotas(core)?.prefix(2) == subscriptionQuotas[...])
-    }
-
-    @Test func nothingSpentYetIsCalculatedAsZero() async {
-        let quota = await usageCredits(extraUsage: #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 0, "utilization": null}"#)
-
-        #expect(quota == row(.percent(0, calculated: true)))
-    }
-
-    @Test func aReportedFigureAloneIsShownAsReported() async {
-        let quota = await usageCredits(extraUsage: #"{"is_enabled": true, "monthly_limit": 5000, "utilization": 24.0}"#)
-
-        #expect(quota == row(.percent(24, calculated: false)))
-    }
-
-    @Test(arguments: [
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0, "currency": "USD"}"#,
-        // 1245 / 5000 is 24.9 %, within a point of the reported 24 %.
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1245, "utilization": 24.0, "currency": 7}"#,
-    ])
-    func reportedAndCalculatedFiguresThatAgreeShowTheReportedOne(extraUsage: String) async {
-        #expect(await usageCredits(extraUsage: extraUsage) == row(.percent(24, calculated: false)))
-    }
-
-    @Test(arguments: [
-        // 60 against 100 × 1200 / 5000 = 24.
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 60.0}"#,
-        // 1255 / 5000 is 25.1 %, just over a point from the reported 24 %.
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1255, "utilization": 24.0}"#,
-    ])
-    func reportedAndCalculatedFiguresThatDisagreeAreUninterpretable(extraUsage: String) async {
-        #expect(await usageCredits(extraUsage: extraUsage) == row(.uninterpretable))
-    }
-
-    @Test(arguments: [
-        // Over the limit, reported and calculated: never clamped to 100.
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 5600, "utilization": 112.0}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "utilization": 100.5}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 5600}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": -50, "utilization": null}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "utilization": -1}"#,
-        // A ratio too large to represent.
-        #"{"is_enabled": true, "monthly_limit": 1e-300, "used_credits": 1e300}"#,
-    ])
-    func aFigureOutsideZeroToHundredIsUninterpretable(extraUsage: String) async {
-        #expect(await usageCredits(extraUsage: extraUsage) == row(.uninterpretable))
-    }
-
-    @Test(arguments: [
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": "24"}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "utilization": true}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "utilization": [24]}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "utilization": {"value": 24}}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "utilization": 1e400}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": "1200", "utilization": 24.0}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": false}"#,
-        #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1e400, "utilization": 24.0}"#,
-    ])
-    func aFigureThatIsNotAUsableNumberIsUninterpretable(extraUsage: String) async {
-        #expect(await usageCredits(extraUsage: extraUsage) == row(.uninterpretable))
-    }
-
-    @Test func theRemainingShareIsCalculatedFromTheUsedOne() async {
-        let extraUsage = #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#
-
-        #expect(await usageCredits(extraUsage: extraUsage, magnitude: .remaining) == row(.percent(76, calculated: true)))
-    }
-
-    @Test func aCalculatedFigureStaysCalculatedAsTheRemainingShare() async {
-        let extraUsage = #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 0, "utilization": null}"#
-
-        #expect(await usageCredits(extraUsage: extraUsage, magnitude: .remaining) == row(.percent(100, calculated: true)))
+        #expect(claudeQuotas(core) == subscriptionQuotas)
     }
 
     @Test func theRowHasNoResetWhileTheSubscriptionQuotasKeepTheirs() async {
-        let core = await openedPanel(claudeResponse: Self.response(
-            extraUsage: #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#
-        ))
+        let core = await openedPanel(claudeResponse: Self.response(extraUsage: Self.overTheLimit))
 
         // The provider sends no reset for usage credits, and none is inferred.
         #expect(claudeQuotas(core)?.map(\.reset) == [
@@ -229,7 +231,7 @@ struct UsageCreditsTests {
         {
           "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
           "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
-          "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0},
+          "extra_usage": \(Self.overTheLimit),
           "limits": [
             {"kind": "weekly_scoped", "percent": 20.0, "resets_at": "2026-09-25T09:00:00.000000+00:00",
              "scope": {"model": {"display_name": "Fable"}}}
@@ -263,7 +265,7 @@ struct UsageCreditsTests {
             return
         }
         #expect(quotas.last == Quota(
-            period: .usageCredits, value: .percent(24, calculated: false), reset: nil, readAt: readingMoment, isStale: true
+            period: .usageCredits, value: .spend(usd("53.06"), limit: usd("40")), reset: nil, readAt: readingMoment, isStale: true
         ))
     }
 }

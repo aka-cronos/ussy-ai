@@ -24,6 +24,23 @@ enum Format {
         "\(value.formatted(.number.precision(.fractionLength(0...1)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))))%"
     }
 
+    /// Usage credits spent this month, as Claude shows them: e.g. "53,06 US$
+    /// de 40 US$ este mes", or "53,06 US$ este mes" without a monthly limit.
+    static func usageCredits(_ spent: Money, limit: Money?) -> String {
+        let limitText = limit.map { " de \(money($0))" } ?? ""
+        return "\(money(spent))\(limitText) este mes"
+    }
+
+    /// In the currency's own format for Spanish; a whole amount drops its
+    /// decimals, e.g. "40 US$".
+    static func money(_ money: Money) -> String {
+        let style = Decimal.FormatStyle.Currency(code: money.currency, locale: locale)
+        var amount = money.amount
+        var whole = Decimal()
+        NSDecimalRound(&whole, &amount, 0, .plain)
+        return money.amount.formatted(whole == money.amount ? style.precision(.fractionLength(0)) : style)
+    }
+
     static func time(_ date: Date) -> String {
         date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(locale))
     }
