@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// Reads, read-only, the session Claude Code keeps on this Mac: the access
 /// token from the Keychain and the account identity from `~/.claude.json`.
@@ -8,17 +7,29 @@ import Security
 /// source, such as a `.credentials.json` file, when the Keychain has no
 /// usable session.
 ///
-/// Reading the Keychain can show the system access prompt, so this must only
-/// run after a user action (opening the panel or pressing Actualizar).
+/// It reads the Keychain item through `/usr/bin/security`, which Claude Code
+/// uses to write it: the item trusts that tool, so the read shows no prompt.
+/// Read directly, the item would ask for the keychain password again after
+/// every token refresh, because Claude Code's rewrite resets the item's
+/// partition list to the tool alone.
+///
+/// Reading the Keychain could still show the system access prompt if the
+/// item stopped trusting the tool, so this must only run after a user action
+/// (opening the panel or pressing Actualizar).
 public struct ClaudeCodeSessionReader: SessionReader {
     private let keychainService = "Claude Code-credentials"
     private let configFile: URL
+    private let securityTool: URL
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        securityTool: URL = URL(filePath: "/usr/bin/security")
+    ) {
         configFile = home.appending(path: ".claude.json")
+        self.securityTool = securityTool
     }
 
-    // Off the main actor: the Keychain call blocks while its prompt is shown.
+    // Off the main actor: the tool blocks while a prompt is shown.
     @concurrent
     public func read() async -> SessionReading {
         let credentials: Data
@@ -43,26 +54,36 @@ public struct ClaudeCodeSessionReader: SessionReader {
         case failed
     }
 
+    /// `security` exits with the low byte of the Keychain error it got.
+    private enum ExitStatus {
+        static let itemNotFound: Int32 = 44 // errSecItemNotFound
+        static let authFailed: Int32 = 51 // errSecAuthFailed
+        static let userCanceled: Int32 = 128 // errSecUserCanceled
+    }
+
     private func keychainItem() -> KeychainItem {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: keychainService,
-            kSecMatchLimit: kSecMatchLimitOne,
-            kSecReturnData: true,
-        ]
-        var result: CFTypeRef?
-        switch SecItemCopyMatching(query as CFDictionary, &result) {
-        case errSecSuccess:
-            guard let data = result as? Data else { return .failed }
-            return .found(data)
-        case errSecItemNotFound:
-            return .notFound
+        let tool = Process()
+        tool.executableURL = securityTool
+        tool.arguments = ["find-generic-password", "-s", keychainService, "-w"]
+        let output = Pipe()
+        tool.standardOutput = output
+        tool.standardError = FileHandle.nullDevice
+        do {
+            try tool.run()
+        } catch {
+            return .failed
+        }
+        // Reads before waiting, so a full pipe never blocks the tool.
+        let data = (try? output.fileHandleForReading.readToEnd()) ?? Data()
+        tool.waitUntilExit()
+        guard tool.terminationReason == .exit else { return .failed }
+        switch tool.terminationStatus {
+        case 0: return .found(data)
+        case ExitStatus.itemNotFound: return .notFound
         // The user denied the prompt. If the prompt could not be shown, the
         // Keychain is unavailable rather than denied or malformed.
-        case errSecUserCanceled, errSecAuthFailed:
-            return .denied
-        default:
-            return .failed
+        case ExitStatus.userCanceled, ExitStatus.authFailed: return .denied
+        default: return .failed
         }
     }
 

@@ -45,7 +45,7 @@ Open Settings with ⌘, from the panel; ⌘W closes it and ⌘Q quits. Your choi
 | **Codex** | Codex CLI signed in with ChatGPT (`~/.codex/auth.json` or `$CODEX_HOME`) | 5 hours, weekly, and any extra limit the plan has |
 | **Cursor** | Cursor (its local `state.vscdb`) | «Cursor Models» and «Other Models» for the billing cycle |
 
-The first time Uzzy reads Claude Code's session, macOS asks for access to the Keychain item.
+Uzzy reads Claude Code's Keychain item through `/usr/bin/security`, the tool Claude Code writes it with. The item already trusts that tool, so macOS shows no Keychain prompt, even after Claude Code refreshes its token.
 
 ## Privacy
 
@@ -95,7 +95,7 @@ xcodebuild build -scheme Uzzy -destination 'platform=macOS,arch=arm64' -derivedD
 open build/Build/Products/Debug/Uzzy.app
 ```
 
-Debug builds run as a separate app, «Uzzy Debug» (`com.akacronos.Uzzy.debug`), with an orange menu bar icon. They keep their own settings, so they can run next to the installed copy without touching it. The first time, the Debug build asks for Keychain access again.
+Debug builds run as a separate app, «Uzzy Debug» (`com.akacronos.Uzzy.debug`), with an orange menu bar icon. They keep their own settings, so they can run next to the installed copy without touching it.
 
 ### Debug scenarios
 
