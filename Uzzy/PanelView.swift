@@ -262,9 +262,13 @@ private struct QuotaView: View {
                 }
                 Bar(fraction: percent / 100)
                     .opacity(quota.isStale ? 0.5 : 1)
-                Text(Format.reset(quota.reset, now: now))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // A quota without a reset, like the usage-credit limit, has
+                // no line for it.
+                if let reset = quota.reset {
+                    Text(Format.reset(reset, now: now))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             // No valid reading of this quota, so no reset or reading time to vouch for.
             case .uninterpretable:
                 QuotaNotice(period: quota.period, notice: "Dato no interpretable")

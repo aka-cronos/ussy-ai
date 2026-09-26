@@ -38,7 +38,7 @@ struct ScenarioTests {
         #expect(quotas(contents(of: core)[.claude]) == [
             Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(claudeFiveHourReset), readAt: Samples.readingMoment),
             Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(claudeWeeklyReset), readAt: Samples.readingMoment),
-            Quota(period: .usageCredits, value: .percent(24, calculated: false), reset: .unknown, readAt: Samples.readingMoment),
+            Quota(period: .usageCredits, value: .percent(24, calculated: false), reset: nil, readAt: Samples.readingMoment),
         ])
     }
 

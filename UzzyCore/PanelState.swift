@@ -105,14 +105,15 @@ public enum Failure: Error, Sendable, Equatable {
 public struct Quota: Sendable, Equatable {
     public let period: QuotaPeriod
     public let value: QuotaValue
-    public let reset: Reset
+    /// Nil when the quota has no reset at all, so none is shown.
+    public let reset: Reset?
     /// When the query that produced this value was made.
     public let readAt: Date
     /// The value no longer confirms the current quota: a later query failed,
     /// or the reset passed without a new reading.
     public let isStale: Bool
 
-    public init(period: QuotaPeriod, value: QuotaValue, reset: Reset, readAt: Date, isStale: Bool = false) {
+    public init(period: QuotaPeriod, value: QuotaValue, reset: Reset?, readAt: Date, isStale: Bool = false) {
         self.period = period
         self.value = value
         self.reset = reset
@@ -132,8 +133,8 @@ public enum QuotaPeriod: Sendable, Hashable {
     /// model ("Sonnet") or a quota bag ("Cursor Models"), over `period`.
     indirect case limit(String, QuotaPeriod)
     /// The share of Claude's usage-credit limit used. Not a subscription
-    /// quota but a deliberate exception shown among them, named on its own:
-    /// the provider sends no period boundary or reset for it.
+    /// quota but a deliberate exception shown among them, named on its own.
+    /// The provider sends no period boundary or reset for it, so it has none.
     case usageCredits
 }
 

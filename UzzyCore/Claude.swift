@@ -59,12 +59,12 @@ enum Claude: ProviderAdapter {
         // Both operands come from the same object, so they share one unit.
         let calculated = extraUsage.usedCredits.values.map { 100 * $0 / limit }
         guard !reported.isEmpty || !calculated.isEmpty else { return nil }
-        // The provider sends no period boundary, so the reset stays unknown.
+        // The provider sends no period boundary, so the quota has no reset.
         return QuotaReading(
             period: .usageCredits,
             usedPercents: reported,
             calculatedUsedPercents: calculated,
-            resets: [],
+            resets: nil,
             readAt: moment
         )
     }

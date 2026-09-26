@@ -14,11 +14,12 @@ struct QuotaReading: Sendable, Equatable {
     /// first when there are any.
     let calculatedUsedPercents: [Double]
     /// Every reset date reported for this quota, unchecked. Text that is not
-    /// a date is left out.
-    let resets: [Date]
+    /// a date is left out. Nil when the quota has no reset at all, unlike a
+    /// quota whose reset the provider did not date.
+    let resets: [Date]?
     let readAt: Date
 
-    init(period: QuotaPeriod, usedPercents: [Double], calculatedUsedPercents: [Double] = [], resets: [Date], readAt: Date) {
+    init(period: QuotaPeriod, usedPercents: [Double], calculatedUsedPercents: [Double] = [], resets: [Date]?, readAt: Date) {
         self.period = period
         self.usedPercents = usedPercents
         self.calculatedUsedPercents = calculatedUsedPercents
@@ -47,7 +48,8 @@ struct QuotaReading: Sendable, Equatable {
         )
     }
 
-    private func reset(at now: Date) -> Reset {
+    private func reset(at now: Date) -> Reset? {
+        guard let resets else { return nil }
         guard let reset = resets.first,
               resets.allSatisfy({ abs($0.timeIntervalSince(readAt)) <= Self.maxResetDistance }),
               resets.allSatisfy({ abs($0.timeIntervalSince(reset)) <= Self.resetAgreement })

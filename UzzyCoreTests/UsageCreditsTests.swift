@@ -83,7 +83,7 @@ struct UsageCreditsTests {
     }
 
     func row(_ value: QuotaValue) -> Quota {
-        Quota(period: .usageCredits, value: value, reset: .unknown, readAt: readingMoment)
+        Quota(period: .usageCredits, value: value, reset: nil, readAt: readingMoment)
     }
 
     @Test func theSampleResponseWithUsageCreditsDisabledShowsNoRow() async {
@@ -211,6 +211,19 @@ struct UsageCreditsTests {
         #expect(await usageCredits(extraUsage: extraUsage, magnitude: .remaining) == row(.percent(100, calculated: true)))
     }
 
+    @Test func theRowHasNoResetWhileTheSubscriptionQuotasKeepTheirs() async {
+        let core = await openedPanel(claudeResponse: Self.response(
+            extraUsage: #"{"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}"#
+        ))
+
+        // The provider sends no reset for usage credits, and none is inferred.
+        #expect(claudeQuotas(core)?.map(\.reset) == [
+            .at(Date(timeIntervalSince1970: 1_790_182_800)),
+            .at(Date(timeIntervalSince1970: 1_790_326_800)),
+            nil,
+        ])
+    }
+
     @Test func theRowFollowsThePerModelLimits() async {
         let core = await openedPanel(claudeResponse: """
         {
@@ -250,7 +263,7 @@ struct UsageCreditsTests {
             return
         }
         #expect(quotas.last == Quota(
-            period: .usageCredits, value: .percent(24, calculated: false), reset: .unknown, readAt: readingMoment, isStale: true
+            period: .usageCredits, value: .percent(24, calculated: false), reset: nil, readAt: readingMoment, isStale: true
         ))
     }
 }

@@ -351,7 +351,7 @@ struct QuotaPresentationTests {
         #expect(claudeQuotas(core) == [
             Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: readingMoment),
             Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
-            Quota(period: .usageCredits, value: .percent(24, calculated: false), reset: .unknown, readAt: readingMoment),
+            Quota(period: .usageCredits, value: .percent(24, calculated: false), reset: nil, readAt: readingMoment),
         ])
     }
 }

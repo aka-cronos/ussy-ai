@@ -57,7 +57,7 @@ extension Scenario {
     }
 
     /// «Créditos de uso»: Claude also reports the share of its usage-credit
-    /// limit used, after its subscription quotas.
+    /// limit used, after its subscription quotas and without a reset line.
     public static let usageCredits = Scenario("usageCredits", "Créditos de uso") { stage in
         await stage.transport.answer(with: .json(#"""
         {
