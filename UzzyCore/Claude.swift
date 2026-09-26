@@ -17,6 +17,8 @@ enum Claude: ProviderAdapter {
     /// `limits[]` repeats the windows (`session`, `weekly_all`) and carries the
     /// per-model limits (`weekly_scoped`), so a quota can arrive more than once.
     /// Every copy goes into the reading, which decides whether they agree.
+    /// `extra_usage` adds the usage credits spent after them; nothing else in
+    /// the response about spend or amounts is read.
     static func quotas(from body: Data, readAt moment: Date) -> Result<[QuotaReading], Failure> {
         guard let response = try? JSONDecoder().decode(Response.self, from: body) else { return .failure(.incompatibleResponse) }
         let limits = response.limits ?? []
@@ -42,7 +44,11 @@ enum Claude: ProviderAdapter {
             let windows = copies(legacy[model] ?? nil, kind: "weekly_scoped", model: model)
             return windows.contains { $0.utilization != nil } ? reading(.limit(model, .weekly), windows, at: moment) : nil
         }
-        return .success(base + perModel)
+        var quotas = base + perModel
+        if let extraUsage = response.extra_usage, let spent = extraUsage.spent {
+            quotas.append(QuotaReading(usageCreditsSpent: spent, limit: extraUsage.limit, readAt: moment))
+        }
+        return .success(quotas)
     }
 
     private static func reading(_ period: QuotaPeriod, _ windows: [Window], at moment: Date) -> QuotaReading {
@@ -66,6 +72,46 @@ enum Claude: ProviderAdapter {
         let seven_day_sonnet: Window?
         let seven_day_opus: Window?
         let limits: [Limit]?
+        let extra_usage: ExtraUsage?
+    }
+
+    /// `extra_usage`, the usage-credit meter. It is read leniently: no value
+    /// in it can make the response incompatible. `utilization` is never read.
+    private struct ExtraUsage: Decodable {
+        /// The usage credits spent this month. Nil unless usage credits are
+        /// enabled and every amount sent, and its currency, is valid.
+        let spent: Money?
+        /// The monthly spend limit, above zero; nil when there is none.
+        let limit: Money?
+
+        private enum CodingKeys: String, CodingKey {
+            case is_enabled, monthly_limit, used_credits, currency
+        }
+
+        init(from decoder: any Decoder) {
+            (spent, limit) = Self.amounts(decoder) ?? (nil, nil)
+        }
+
+        /// Both amounts are whole minor units of `currency`, e.g. cents. A
+        /// limit that is sent but malformed is not taken as no limit, and a
+        /// zero limit shows no row.
+        private static func amounts(_ decoder: any Decoder) -> (Money, Money?)? {
+            guard let values = try? decoder.container(keyedBy: CodingKeys.self),
+                  (try? values.decodeIfPresent(Bool.self, forKey: .is_enabled)) == true,
+                  let currency = try? values.decodeIfPresent(String.self, forKey: .currency),
+                  let used = try? values.decodeIfPresent(Int.self, forKey: .used_credits),
+                  let spent = Money(minorUnits: used, currency: currency)
+            else { return nil }
+            let limitUnits: Int?
+            do {
+                limitUnits = try values.decodeIfPresent(Int.self, forKey: .monthly_limit)
+            } catch {
+                return nil
+            }
+            guard let limitUnits else { return (spent, nil) }
+            guard limitUnits > 0, let limit = Money(minorUnits: limitUnits, currency: currency) else { return nil }
+            return (spent, limit)
+        }
     }
 
     private struct Window: Decodable {

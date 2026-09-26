@@ -45,7 +45,7 @@ extension Scenario {
     /// Every scenario, in the order to review them. Together they show every
     /// visible state of the panel.
     public static let all: [Scenario] = [
-        quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
+        quotas, usageCredits, uncappedUsageCredits, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
         uninterpretable, noSession, sessionExpired, reusedSessionRejected, sessionAccessDenied, unavailableSessionStores,
         incompatibleSession, incompatibleResponse, incompatibleCursorReset,
         networkFailures, refused, longContent, bankedResets,
@@ -54,6 +54,31 @@ extension Scenario {
     /// Every card shows the sample quotas.
     public static let quotas = Scenario("quotas", "Cuotas al día") { stage in
         await stage.openPanel()
+    }
+
+    /// «Créditos de uso»: after its subscription quotas, Claude reports
+    /// 53.06 US dollars of usage credits spent against a 40-dollar monthly
+    /// limit. Spending past the limit is shown as it is.
+    public static let usageCredits = Scenario("usageCredits", "Créditos de uso") { stage in
+        await stage.transport.answer(with: .json(claudeWithUsageCredits(monthlyLimit: "4000")), for: .claude)
+        await stage.openPanel()
+    }
+
+    /// «Créditos de uso» without a monthly limit: only the spend is shown.
+    public static let uncappedUsageCredits = Scenario("uncappedUsageCredits", "Créditos de uso sin límite") { stage in
+        await stage.transport.answer(with: .json(claudeWithUsageCredits(monthlyLimit: "null")), for: .claude)
+        await stage.openPanel()
+    }
+
+    /// Claude's sample windows with 5306 cents of usage credits spent.
+    private static func claudeWithUsageCredits(monthlyLimit: String) -> String {
+        #"""
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "extra_usage": {"is_enabled": true, "monthly_limit": \#(monthlyLimit), "used_credits": 5306, "utilization": null, "currency": "USD"}
+        }
+        """#
     }
 
     /// «Consultando cuotas»: the first query of every card is still running.

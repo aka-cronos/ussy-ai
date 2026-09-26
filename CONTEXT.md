@@ -53,6 +53,10 @@ _Avoid_: User, profile, session (the session is how Uzzy reaches the account).
 The state of a session whose account cannot be verified, e.g. because its identity is missing.
 _Avoid_: Unknown account (as if it were a distinct account), anonymous session.
 
+**Usage credits**:
+Claude's pay-as-you-go consumption (formerly "extra usage"), billed at API rates after the subscription's included usage runs out, optionally capped by a **monthly spend limit** the person sets. Uzzy shows the amount spent this month and the limit, if any, in the provider's currency, as Claude does: «53,06 US$ de 40 US$ este mes», or «53,06 US$ este mes» without a limit. Spending can pass the limit and is shown as it is. It has no percentage, no used/remaining magnitude and no reset. The prepaid balance is not in the provider's response and is never shown or inferred. It is **not** a subscription quota; it sits among the quota rows as a deliberate exception. In Spanish copy it is «Créditos de uso».
+_Avoid_: Subscription quota, balance, a percentage of the limit, "extra usage" (as a label); in Spanish, «saldo», «cuota».
+
 **Disabled provider**:
 A provider the person has switched off in Uzzy. It has no card, and Uzzy does not read its session or query its quotas until the person switches it on again.
 _Avoid_: Hidden card (suggests only a display change), missing session (a separate state).

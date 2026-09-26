@@ -336,17 +336,27 @@ struct QuotaPresentationTests {
         ))
     }
 
-    @Test func amountsCreditsExtraSpendAndOpaqueFieldsAreNeverShown() async {
+    @Test func onlyTheUsageCreditAmountsAreShownNeverSpendOrOpaqueFields() async {
         let core = await openedPanel(claudeResponse: """
         {
           "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
           "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
           "iguana_necktie": {"utilization": 80.0, "resets_at": "2026-09-24T00:00:00.000000+00:00"},
-          "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0},
-          "spend": {"amount": 1200, "currency": "USD"}
+          "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0, "currency": "USD"},
+          "spend": {"amount": 9900, "currency": "EUR"}
         }
         """)
 
-        #expect(claudeQuotas(core)?.map(\.period) == [.fiveHours, .weekly])
+        // The usage credits spent and their monthly limit, from `extra_usage` alone.
+        #expect(claudeQuotas(core) == [
+            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: readingMoment),
+            Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
+            Quota(
+                period: .usageCredits,
+                value: .spend(Money(amount: 12, currency: "USD"), limit: Money(amount: 50, currency: "USD")),
+                reset: nil,
+                readAt: readingMoment
+            ),
+        ])
     }
 }

@@ -32,6 +32,32 @@ struct ScenarioTests {
         #expect(!core.state.isQuerying)
     }
 
+    @Test func usageCreditsShowsClaudeSpendingPastItsMonthlyLimit() async {
+        let core = await Scenario.usageCredits.start()
+
+        #expect(quotas(contents(of: core)[.claude]) == [
+            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(claudeFiveHourReset), readAt: Samples.readingMoment),
+            Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(claudeWeeklyReset), readAt: Samples.readingMoment),
+            Quota(
+                period: .usageCredits,
+                value: .spend(Money(amount: Decimal(string: "53.06")!, currency: "USD"), limit: Money(amount: 40, currency: "USD")),
+                reset: nil,
+                readAt: Samples.readingMoment
+            ),
+        ])
+    }
+
+    @Test func uncappedUsageCreditsShowsClaudeSpendingWithoutALimit() async {
+        let core = await Scenario.uncappedUsageCredits.start()
+
+        #expect(quotas(contents(of: core)[.claude]).last == Quota(
+            period: .usageCredits,
+            value: .spend(Money(amount: Decimal(string: "53.06")!, currency: "USD"), limit: nil),
+            reset: nil,
+            readAt: Samples.readingMoment
+        ))
+    }
+
     @Test func loadingShowsEveryCardQueryingItsQuotas() async {
         let core = await Scenario.loading.start()
 

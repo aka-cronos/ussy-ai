@@ -135,7 +135,10 @@ private struct CardView: View {
         }
         // A missing or uninterpretable figure has no valid reading to date.
         return quotas.compactMap { quota -> Date? in
-            if case .percent = quota.value { quota.readAt } else { nil }
+            switch quota.value {
+            case .percent, .spend: quota.readAt
+            case .uninterpretable, .unavailable: nil
+            }
         }.min()
     }
 
@@ -249,10 +252,7 @@ private struct QuotaView: View {
                 // The label and the bar come from the same value, so they
                 // always show the same magnitude.
                 HStack(alignment: .firstTextBaseline) {
-                    Text(quota.period.name)
-                    if quota.isStale {
-                        Text("Desactualizado").font(.caption.weight(.semibold)).foregroundStyle(.orange)
-                    }
+                    QuotaName(quota: quota)
                     Spacer()
                     Text(Format.percent(percent))
                         .font(.title3.weight(.semibold))
@@ -262,9 +262,21 @@ private struct QuotaView: View {
                 }
                 Bar(fraction: percent / 100)
                     .opacity(quota.isStale ? 0.5 : 1)
-                Text(Format.reset(quota.reset, now: now))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let reset = quota.reset {
+                    Text(Format.reset(reset, now: now))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            // Money, not a quota figure: no magnitude, no bar and no reset.
+            case .spend(let spent, let limit):
+                HStack(alignment: .firstTextBaseline) {
+                    QuotaName(quota: quota)
+                    Spacer()
+                    Text(Format.usageCredits(spent, limit: limit))
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+                        .foregroundStyle(quota.isStale ? .secondary : .primary)
+                }
             // No valid reading of this quota, so no reset or reading time to vouch for.
             case .uninterpretable:
                 QuotaNotice(period: quota.period, notice: "Dato no interpretable")
@@ -274,6 +286,18 @@ private struct QuotaView: View {
         }
         .padding(.top, 14)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A quota's name, marked when its figure is stale.
+private struct QuotaName: View {
+    let quota: Quota
+
+    var body: some View {
+        Text(quota.period.name)
+        if quota.isStale {
+            Text("Desactualizado").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+        }
     }
 }
 
@@ -403,6 +427,7 @@ private extension QuotaPeriod {
         case .weekly: "Semanal"
         case .lasting(let seconds): Format.duration(seconds: seconds)
         case .billingCycle: "Ciclo de facturación"
+        case .usageCredits: "Créditos de uso"
         case .limit(let name, .billingCycle): name
         case .limit(let name, let period): "\(period.name) · \(name)"
         }

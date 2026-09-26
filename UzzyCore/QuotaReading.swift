@@ -6,13 +6,31 @@ import Foundation
 /// that copies that disagree can be told apart from a single figure.
 struct QuotaReading: Sendable, Equatable {
     let period: QuotaPeriod
-    /// Every used percentage reported for this quota, unchecked. Empty when
-    /// the quota was not reported.
-    let usedPercents: [Double]
-    /// Every reset date reported for this quota, unchecked. Text that is not
-    /// a date is left out.
-    let resets: [Date]
+    private let figures: Figures
     let readAt: Date
+
+    /// What the provider reported for the quota.
+    private enum Figures: Sendable, Equatable {
+        /// Every used percentage and every reset date reported, unchecked.
+        /// No percentage when the quota was not reported; text that is not a
+        /// date is left out of the resets.
+        case usedPercents([Double], resets: [Date])
+        /// Money spent and its limit, already checked. It has no reset.
+        case spend(Money, limit: Money?)
+    }
+
+    init(period: QuotaPeriod, usedPercents: [Double], resets: [Date], readAt: Date) {
+        self.period = period
+        figures = .usedPercents(usedPercents, resets: resets)
+        self.readAt = readAt
+    }
+
+    /// Claude's usage credits spent this month, and their monthly limit.
+    init(usageCreditsSpent spent: Money, limit: Money?, readAt: Date) {
+        period = .usageCredits
+        figures = .spend(spent, limit: limit)
+        self.readAt = readAt
+    }
 
     /// Copies of a figure that differ by more than this contradict each other.
     /// It matches the precision the figures are checked against.
@@ -35,7 +53,9 @@ struct QuotaReading: Sendable, Equatable {
         )
     }
 
-    private func reset(at now: Date) -> Reset {
+    /// Nil for money spent, which has no reset at all.
+    private func reset(at now: Date) -> Reset? {
+        guard case .usedPercents(_, let resets) = figures else { return nil }
         guard let reset = resets.first,
               resets.allSatisfy({ abs($0.timeIntervalSince(readAt)) <= Self.maxResetDistance }),
               resets.allSatisfy({ abs($0.timeIntervalSince(reset)) <= Self.resetAgreement })
@@ -44,6 +64,11 @@ struct QuotaReading: Sendable, Equatable {
     }
 
     private func value(in magnitude: QuotaMagnitude) -> QuotaValue {
+        let usedPercents: [Double]
+        switch figures {
+        case .spend(let spent, let limit): return .spend(spent, limit: limit)
+        case .usedPercents(let percents, _): usedPercents = percents
+        }
         guard let usedPercent = usedPercents.first else { return .unavailable }
         guard usedPercents.allSatisfy({ $0.isFinite && (0...100).contains($0) }),
               usedPercents.allSatisfy({ abs($0 - usedPercent) <= Self.percentAgreement })

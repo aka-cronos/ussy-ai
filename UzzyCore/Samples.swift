@@ -13,8 +13,9 @@ public enum Samples {
     public static let readingMoment = Date(timeIntervalSince1970: 1_790_173_920)
 
     /// Claude's `GET /api/oauth/usage`. `limits[]` repeats both windows, as the
-    /// real response does. Includes fields that are ignored (opaque names,
-    /// empty per-model limits and `extra_usage`).
+    /// real response does. Includes fields that are ignored (opaque names and
+    /// empty per-model limits) and a disabled `extra_usage`, which shows no
+    /// usage credits.
     public static let claudeUsageResponse = Data(#"""
     {
       "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
