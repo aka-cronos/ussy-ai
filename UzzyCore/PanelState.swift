@@ -131,6 +131,10 @@ public enum QuotaPeriod: Sendable, Hashable {
     /// A limit the provider sends separately and names, e.g. of a single
     /// model ("Sonnet") or a quota bag ("Cursor Models"), over `period`.
     indirect case limit(String, QuotaPeriod)
+    /// The share of Claude's usage-credit limit used. Not a subscription
+    /// quota but a deliberate exception shown among them, named on its own:
+    /// the provider sends no period boundary or reset for it.
+    case usageCredits
 }
 
 /// A quota's value in the panel's magnitude.

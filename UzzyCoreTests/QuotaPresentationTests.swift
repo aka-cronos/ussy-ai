@@ -336,7 +336,7 @@ struct QuotaPresentationTests {
         ))
     }
 
-    @Test func amountsCreditsExtraSpendAndOpaqueFieldsAreNeverShown() async {
+    @Test func amountsSpendAndOpaqueFieldsAreNeverShownOnlyTheUsageCreditShare() async {
         let core = await openedPanel(claudeResponse: """
         {
           "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
@@ -347,6 +347,11 @@ struct QuotaPresentationTests {
         }
         """)
 
-        #expect(claudeQuotas(core)?.map(\.period) == [.fiveHours, .weekly])
+        // Only the percentage of the usage-credit limit is shown, never its amounts.
+        #expect(claudeQuotas(core) == [
+            Quota(period: .fiveHours, value: .percent(35, calculated: false), reset: .at(fiveHourReset), readAt: readingMoment),
+            Quota(period: .weekly, value: .percent(62, calculated: false), reset: .at(weeklyReset), readAt: readingMoment),
+            Quota(period: .usageCredits, value: .percent(24, calculated: false), reset: .unknown, readAt: readingMoment),
+        ])
     }
 }

@@ -9,10 +9,22 @@ struct QuotaReading: Sendable, Equatable {
     /// Every used percentage reported for this quota, unchecked. Empty when
     /// the quota was not reported.
     let usedPercents: [Double]
+    /// Every used percentage calculated from other data of this quota,
+    /// unchecked. They are checked like the reported ones, which are shown
+    /// first when there are any.
+    let calculatedUsedPercents: [Double]
     /// Every reset date reported for this quota, unchecked. Text that is not
     /// a date is left out.
     let resets: [Date]
     let readAt: Date
+
+    init(period: QuotaPeriod, usedPercents: [Double], calculatedUsedPercents: [Double] = [], resets: [Date], readAt: Date) {
+        self.period = period
+        self.usedPercents = usedPercents
+        self.calculatedUsedPercents = calculatedUsedPercents
+        self.resets = resets
+        self.readAt = readAt
+    }
 
     /// Copies of a figure that differ by more than this contradict each other.
     /// It matches the precision the figures are checked against.
@@ -44,12 +56,13 @@ struct QuotaReading: Sendable, Equatable {
     }
 
     private func value(in magnitude: QuotaMagnitude) -> QuotaValue {
-        guard let usedPercent = usedPercents.first else { return .unavailable }
-        guard usedPercents.allSatisfy({ $0.isFinite && (0...100).contains($0) }),
-              usedPercents.allSatisfy({ abs($0 - usedPercent) <= Self.percentAgreement })
+        let figures = usedPercents + calculatedUsedPercents
+        guard let usedPercent = figures.first else { return .unavailable }
+        guard figures.allSatisfy({ $0.isFinite && (0...100).contains($0) }),
+              figures.allSatisfy({ abs($0 - usedPercent) <= Self.percentAgreement })
         else { return .uninterpretable }
         return switch magnitude {
-        case .used: .percent(usedPercent, calculated: false)
+        case .used: .percent(usedPercent, calculated: usedPercents.isEmpty)
         case .remaining: .percent(100 - usedPercent, calculated: true)
         }
     }

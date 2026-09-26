@@ -403,6 +403,7 @@ private extension QuotaPeriod {
         case .weekly: "Semanal"
         case .lasting(let seconds): Format.duration(seconds: seconds)
         case .billingCycle: "Ciclo de facturación"
+        case .usageCredits: "Créditos de uso"
         case .limit(let name, .billingCycle): name
         case .limit(let name, let period): "\(period.name) · \(name)"
         }

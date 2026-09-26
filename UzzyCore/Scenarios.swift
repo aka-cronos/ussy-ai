@@ -45,7 +45,7 @@ extension Scenario {
     /// Every scenario, in the order to review them. Together they show every
     /// visible state of the panel.
     public static let all: [Scenario] = [
-        quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
+        quotas, usageCredits, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
         uninterpretable, noSession, sessionExpired, reusedSessionRejected, sessionAccessDenied, unavailableSessionStores,
         incompatibleSession, incompatibleResponse, incompatibleCursorReset,
         networkFailures, refused, longContent, bankedResets,
@@ -53,6 +53,19 @@ extension Scenario {
 
     /// Every card shows the sample quotas.
     public static let quotas = Scenario("quotas", "Cuotas al día") { stage in
+        await stage.openPanel()
+    }
+
+    /// «Créditos de uso»: Claude also reports the share of its usage-credit
+    /// limit used, after its subscription quotas.
+    public static let usageCredits = Scenario("usageCredits", "Créditos de uso") { stage in
+        await stage.transport.answer(with: .json(#"""
+        {
+          "five_hour": {"utilization": 35.0, "resets_at": "2026-09-23T17:00:00.000000+00:00"},
+          "seven_day": {"utilization": 62.0, "resets_at": "2026-09-25T09:00:00.000000+00:00"},
+          "extra_usage": {"is_enabled": true, "monthly_limit": 5000, "used_credits": 1200, "utilization": 24.0}
+        }
+        """#), for: .claude)
         await stage.openPanel()
     }
 
