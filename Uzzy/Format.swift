@@ -39,6 +39,18 @@ enum Format {
         }
     }
 
+    /// The banked resets of an account, spelled out, e.g. "3 restablecimientos
+    /// disponibles". «disponible» is allowed here only: it matches Codex's
+    /// own "N available".
+    static func bankedResets(_ count: Int) -> String {
+        count == 1 ? "1 restablecimiento disponible" : "\(count) restablecimientos disponibles"
+    }
+
+    /// Where banked resets are used. Uzzy only shows them.
+    static func bankedResetsNote(_ count: Int) -> String {
+        count == 1 ? "Se usa desde Codex." : "Se usan desde Codex."
+    }
+
     /// E.g. "Hoy, 14:42", so a moment on another day is not mistaken for today.
     static func dayAndTime(_ date: Date, now: Date) -> String {
         "\(day(date, now: now)), \(time(date))"
