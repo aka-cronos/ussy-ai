@@ -48,7 +48,7 @@ extension Scenario {
         quotas, loading, newAccount, stale, pendingConfirmation, unknownReset, unavailable, withoutSubscriptionQuotas,
         uninterpretable, noSession, sessionExpired, reusedSessionRejected, sessionAccessDenied, unavailableSessionStores,
         incompatibleSession, incompatibleResponse, incompatibleCursorReset,
-        networkFailures, refused, longContent,
+        networkFailures, refused, longContent, bankedResets,
     ]
 
     /// Every card shows the sample quotas.
@@ -266,6 +266,23 @@ extension Scenario {
         stage.core.panelClosed()
         stage.clock.advance(by: 20 * 60)
         await stage.transport.answer(with: .timeout, for: .cursor)
+        await stage.openPanel()
+    }
+}
+
+extension Scenario {
+    /// «Restablecimientos disponibles»: the Codex account holds 3 banked
+    /// resets, so its card shows the count next to its name.
+    public static let bankedResets = Scenario("bankedResets", "Restablecimientos disponibles") { stage in
+        await stage.transport.answer(with: .codex(
+            rateLimit: #"""
+            {
+              "primary_window": {"used_percent": 12, "limit_window_seconds": 18000, "reset_at": 1790186400},
+              "secondary_window": {"used_percent": 41, "limit_window_seconds": 604800, "reset_at": 1790575200}
+            }
+            """#,
+            resetCredits: #"{"available_count": 3, "applicable_available_count": 3}"#
+        ), for: .codex)
         await stage.openPanel()
     }
 }

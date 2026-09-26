@@ -143,6 +143,9 @@ private struct CardView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text(card.provider.name).fontWeight(.semibold)
+                if let bankedResets = card.bankedResets {
+                    BankedResetsButton(count: bankedResets)
+                }
                 Spacer()
                 if let lastReadAt {
                     Text("Última lectura: \(Format.dayAndTime(lastReadAt, now: now))")
@@ -171,6 +174,52 @@ private struct CardView: View {
         }
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The account's banked resets, next to the provider's name: a pill with the
+/// count that opens a popover spelling it out. It is not a quota: no bar, no
+/// percentage and no reset date.
+private struct BankedResetsButton: View {
+    let count: Int
+    @State private var isShowingDetail = false
+
+    /// A gauge with a backward arrow: a limit set back.
+    static let symbol = "gauge.open.righthalf.dotted.with.needle.and.arrow.trianglehead.backward"
+
+    var body: some View {
+        Button { isShowingDetail.toggle() } label: {
+            HStack(spacing: 3) {
+                Image(systemName: Self.symbol)
+                    .font(.caption2)
+                Text(count, format: .number)
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(.fill.secondary, in: .capsule)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Format.bankedResets(count))
+        .help(Format.bankedResets(count))
+        .popover(isPresented: $isShowingDetail, arrowEdge: .bottom) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: Self.symbol)
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Format.bankedResets(count)).font(.headline)
+                    Text(Format.bankedResetsNote(count))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .fixedSize()
+        }
     }
 }
 

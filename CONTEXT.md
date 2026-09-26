@@ -15,11 +15,15 @@ _Avoid_: Spend, cost; in Spanish, «consumido», «gastado».
 
 **Remaining quota**:
 The part of a subscription quota still available within its period. In Spanish copy it is «restante».
-_Avoid_: Available money, balance; in Spanish, «disponible» (already means the data is present), «libre».
+_Avoid_: Available money, balance; in Spanish, «disponible» (already means the data is present; the one exception is «restablecimiento disponible», see **Banked reset**), «libre».
 
 **Reset**:
 The moment, given by the provider, when a subscription quota renews.
 _Avoid_: Top-up, session renewal.
+
+**Banked reset**:
+A reset the provider grants an account, which the person can redeem in the provider's app to refill quota windows. It belongs to the account, not to a quota. In Spanish copy it is a «restablecimiento disponible».
+_Avoid_: Reset (the moment a quota renews), credits, spend; in Spanish, «reinicio», «crédito», «canjear».
 
 **Last valid reading**:
 A subscription quota's data from the last valid query for a specific account, together with the time of that query. After a failed refresh it is stale and does not confirm the current quota.
