@@ -54,7 +54,7 @@ The state of a session whose account cannot be verified, e.g. because its identi
 _Avoid_: Unknown account (as if it were a distinct account), anonymous session.
 
 **Usage-credit limit**:
-The monthly spend cap a person sets on Claude usage credits (formerly "extra usage"): pay-as-you-go consumption billed at API rates after the subscription's included usage runs out. Uzzy shows only the percentage of the cap used. It is **not** a subscription quota; it sits among the quota rows as a deliberate exception. In Spanish copy it is «Créditos de uso».
+The monthly spend cap a person sets on Claude usage credits (formerly "extra usage"): pay-as-you-go consumption billed at API rates after the subscription's included usage runs out. Uzzy shows only the percentage of the cap used, with no reset: the provider sends none, and a reset would suggest a quota that renews. It is **not** a subscription quota; it sits among the quota rows as a deliberate exception. In Spanish copy it is «Créditos de uso».
 _Avoid_: Subscription quota, balance, spend (as a label), "extra usage" (as a label); in Spanish, «saldo», «gasto», «cuota».
 
 **Disabled provider**:
