@@ -117,10 +117,13 @@ struct UsageCreditsTests {
         #expect(await usageCredits(extraUsage: extraUsage) == .spend(usd("0"), limit: usd("40")))
     }
 
-    @Test func aZeroMonthlyLimitIsShownAsItIs() async {
-        let extraUsage = #"{"is_enabled": true, "monthly_limit": 0, "used_credits": 0, "currency": "USD"}"#
-
-        #expect(await usageCredits(extraUsage: extraUsage) == .spend(usd("0"), limit: usd("0")))
+    @Test(arguments: [
+        #"{"is_enabled": true, "monthly_limit": 0, "used_credits": 0, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 0, "used_credits": 5306, "currency": "USD"}"#,
+        #"{"is_enabled": true, "monthly_limit": 0.0, "used_credits": 0, "currency": "USD"}"#,
+    ])
+    func aZeroMonthlyLimitShowsNoRow(extraUsage: String) async {
+        #expect(await usageCredits(extraUsage: extraUsage) == nil)
     }
 
     @Test(arguments: [

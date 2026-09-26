@@ -81,7 +81,7 @@ enum Claude: ProviderAdapter {
         /// The usage credits spent this month. Nil unless usage credits are
         /// enabled and every amount sent, and its currency, is valid.
         let spent: Money?
-        /// The monthly spend limit; nil when there is none.
+        /// The monthly spend limit, above zero; nil when there is none.
         let limit: Money?
 
         private enum CodingKeys: String, CodingKey {
@@ -93,7 +93,8 @@ enum Claude: ProviderAdapter {
         }
 
         /// Both amounts are whole minor units of `currency`, e.g. cents. A
-        /// limit that is sent but malformed is not taken as no limit.
+        /// limit that is sent but malformed is not taken as no limit, and a
+        /// zero limit shows no row.
         private static func amounts(_ decoder: any Decoder) -> (Money, Money?)? {
             guard let values = try? decoder.container(keyedBy: CodingKeys.self),
                   (try? values.decodeIfPresent(Bool.self, forKey: .is_enabled)) == true,
@@ -108,7 +109,7 @@ enum Claude: ProviderAdapter {
                 return nil
             }
             guard let limitUnits else { return (spent, nil) }
-            guard let limit = Money(minorUnits: limitUnits, currency: currency) else { return nil }
+            guard limitUnits > 0, let limit = Money(minorUnits: limitUnits, currency: currency) else { return nil }
             return (spent, limit)
         }
     }
