@@ -1,48 +1,70 @@
-# Uzzy
+<h1 align="center">Uzzy</h1>
 
-A macOS menu bar app that shows the subscription quotas of **Claude**, **Codex** and **Cursor** at a glance: how much you have used, how much is left and when each one resets.
+<p align="center">
+  <strong>Your Claude, Codex and Cursor subscription quotas, one click away in the macOS menu bar.</strong><br>
+  How much you have used, how much is left and when each quota resets.
+</p>
 
-> **Status:** in development. The MVP is specified in [#11](https://github.com/aka-cronos/uzzy/issues/11). The app reads real quotas for Claude, Codex and Cursor from the sessions on this Mac.
+<p align="center">
+  <img alt="macOS 27" src="https://img.shields.io/badge/macOS-27-black?logo=apple">
+  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-black">
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-## What it does
+<p align="center">
+  <img src="docs/images/panel.png" width="420" alt="The Uzzy panel open from the menu bar, with one card each for Claude, Codex and Cursor. Every quota has its own bar, its used percentage and its reset time.">
+</p>
 
-- A fixed menu bar icon opens a panel with one card per enabled provider.
-- Each quota is shown separately (e.g. "5 horas" and "Semanal"), with its own bar, its reset in local time and the time of the last reading. Quotas are never combined into a single percentage.
-- A Settings window (⌘, from the panel or Settings; ⌘W closes it, ⌘Q quits) to choose used or remaining quota and enable or disable each provider. These choices are remembered across launches; disabled providers are not queried.
-- If a provider fails, its card explains why (no session, expired session, offline, incompatible response…) and the others keep working. Missing data is never shown as zero.
+> [!NOTE]
+> Uzzy is in development. The MVP is specified in [#11](https://github.com/aka-cronos/uzzy/issues/11), and there are no prebuilt releases yet: you [build it yourself](#install). The app's interface is in Spanish.
 
-The app's interface is in Spanish.
+## Why Uzzy
+
+If you pay for more than one AI coding subscription, finding out how close you are to a limit means opening each provider's dashboard. Uzzy puts every quota in one panel, reusing the sessions Claude Code, Codex CLI and Cursor already keep on your Mac. There is nothing to sign in to and no API key to paste.
+
+## Features
+
+- **One card per provider.** A fixed menu bar icon opens a panel with a card for each enabled provider.
+- **Every quota on its own.** Each quota («5 horas», «Semanal», «Cursor Models»…) gets its own bar, its reset in local time with a countdown, and the time of its last reading. Quotas are never combined into a single percentage.
+- **Queries only while you look.** Uzzy reads the quotas when you open the panel (unless the last reading is under five minutes old), every five minutes while it stays open, and on demand with the refresh button. With the panel closed it makes no requests.
+- **Honest failures.** If a provider fails, its card explains why (no session, expired session, offline, incompatible response…) and the others keep working. When a refresh fails, the card keeps the last valid reading and marks it as stale. Missing data is never shown as zero.
+- **Native settings.** Choose used or remaining quota, and turn each provider on or off or change the order of the cards.
+
+<p align="center">
+  <img src="docs/images/settings.png" width="520" alt="The Uzzy Settings window: a Used / Remaining switch for the percentage on the cards, and the Claude, Codex and Cursor providers with buttons to reorder them and a switch to turn each one on or off.">
+</p>
+
+Open Settings with ⌘, from the panel; ⌘W closes it and ⌘Q quits. Your choices are remembered across launches, and a disabled provider has no card: Uzzy does not read its session or query its quotas.
+
+## Supported providers
+
+| Provider | Session it reuses | Quotas |
+|---|---|---|
+| **Claude** | Claude Code (the Keychain and `~/.claude.json`) | 5 hours, weekly, and weekly per model when the plan has them |
+| **Codex** | Codex CLI signed in with ChatGPT (`~/.codex/auth.json` or `$CODEX_HOME`) | 5 hours, weekly, and any extra limit the plan has |
+| **Cursor** | Cursor (its local `state.vscdb`) | «Cursor Models» and «Other Models» for the billing cycle |
+
+The first time Uzzy reads Claude Code's session, macOS asks for access to the Keychain item.
 
 ## Privacy
 
 - Reuses, **read-only**, the sessions that already exist in Claude Code, Codex CLI and Cursor. It never asks for passwords, signs in, refreshes tokens or writes credentials.
 - Only connects to `api.anthropic.com`, `chatgpt.com` and `api2.cursor.sh`. No telemetry and no server of its own.
 - Quotas live only in memory; nothing is written to disk.
-- Display magnitude and provider visibility preferences are stored in local `UserDefaults`; they contain no quota, token, email or account identifier.
+- Display magnitude, provider visibility and provider order preferences are stored in local `UserDefaults`; they contain no quota, token, email or account identifier.
 
-## Disclaimer
+## Install
 
-The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice, and each person is responsible for using them within their provider's terms.
-
-Uzzy is an independent project, not affiliated with, endorsed by or sponsored by the makers of Claude, Codex, ChatGPT or Cursor. All product names and trademarks belong to their respective owners.
-
-## Requirements
+### Requirements
 
 - macOS 27 on Apple Silicon.
-- Xcode 27 to build. There are no prebuilt releases: you build Uzzy yourself.
+- Xcode 27 to build.
 - A signed-in session in Claude Code, Codex CLI (ChatGPT mode) and/or Cursor.
-
-## Build and test
 
 No Apple Developer account is needed: by default the app is signed ad hoc ("Sign to Run Locally"). To sign with your own team, see [Signing](CONTRIBUTING.md#signing).
 
-```sh
-xcodebuild test -scheme Uzzy -destination 'platform=macOS,arch=arm64'
-xcodebuild build -scheme Uzzy -destination 'platform=macOS,arch=arm64' -derivedDataPath build
-open build/Build/Products/Debug/Uzzy.app
-```
-
-### Install
+### Build and install
 
 To keep Uzzy running day to day, build it in Release and copy it to `/Applications`. From the repo root you can paste the whole block; Terminal runs the three commands in order.
 
@@ -63,6 +85,16 @@ open /Applications/Uzzy.app
 
 To open it at login, add it under System Settings → General → Login Items.
 
+## Development
+
+### Build and test
+
+```sh
+xcodebuild test -scheme Uzzy -destination 'platform=macOS,arch=arm64'
+xcodebuild build -scheme Uzzy -destination 'platform=macOS,arch=arm64' -derivedDataPath build
+open build/Build/Products/Debug/Uzzy.app
+```
+
 Debug builds run as a separate app, «Uzzy Debug» (`com.akacronos.Uzzy.debug`), with an orange menu bar icon. They keep their own settings, so they can run next to the installed copy without touching it. The first time, the Debug build asks for Keychain access again.
 
 ### Debug scenarios
@@ -75,7 +107,7 @@ build/Build/Products/Debug/Uzzy.app/Contents/MacOS/Uzzy -scenario stale
 
 Release builds leave the scenarios, the fakes and the sample responses out.
 
-## Repository layout
+### Repository layout
 
 | Path | Contents |
 |---|---|
@@ -85,6 +117,7 @@ Release builds leave the scenarios, the fakes and the sample responses out.
 | `CONTEXT.md` | Domain vocabulary (used quota, reset, last valid reading…). |
 | `Config/` | Shared build settings (signing). |
 | `docs/agents/` | Agent conventions: issues, triage labels, domain docs. |
+| `docs/images/` | Screenshots used in this README. |
 | `.agents/skills/` | Agent skills used to work on the repo, copied from their upstream repos (see `skills-lock.json`). |
 
 Design decisions live in the [issues](https://github.com/aka-cronos/uzzy/issues?q=is%3Aissue) of map [#1](https://github.com/aka-cronos/uzzy/issues/1).
@@ -92,6 +125,12 @@ Design decisions live in the [issues](https://github.com/aka-cronos/uzzy/issues?
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## Disclaimer
+
+The endpoints the app uses to read quotas are **internal and undocumented** by the providers. They may change or stop working without notice, and each person is responsible for using them within their provider's terms.
+
+Uzzy is an independent project, not affiliated with, endorsed by or sponsored by the makers of Claude, Codex, ChatGPT or Cursor. All product names and trademarks belong to their respective owners.
 
 ## Acknowledgements
 
